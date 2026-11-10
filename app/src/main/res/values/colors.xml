@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores tiradas do logo Massoterapia Acalmar -->
+    <color name="cream">#FBF5EE</color>
+    <color name="beige">#F5DBC1</color>
+    <color name="gold">#D2A67A</color>
+    <color name="bronze">#905B2B</color>
+    <color name="brown">#4A2F1A</color>
+</resources>

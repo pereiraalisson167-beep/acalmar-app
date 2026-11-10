@@ -1,0 +1,63 @@
+name: Gerar APK
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'ci/ui/**'
+      - '.github/workflows/ui-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar, testar e publicar o APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v5
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Chave de assinatura
+        id: signing
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALLOW_KEY_CREATION: 'true'
+        run: bash ci/prepare-signing.sh
+
+      - name: Testes e build
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --console=plain -PciVersionCode=${{ github.run_number }} \
+            testReleaseUnitTest assembleRelease 2>&1 | tee build.log
+
+      - name: Relatar falha
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ci/report-failure.sh build.log
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: bash ci/publish-release.sh
