@@ -5,6 +5,7 @@ Usado pelo workflow "Conferir telas": instala o APK, simula os toques de um dia 
 (cadastrar cliente, agendar, concluir, vender pacote, caixa, configurações) e registra
 qualquer erro que feche o app.
 """
+import datetime
 import os
 import re
 import subprocess
@@ -71,10 +72,19 @@ def tap(text=None, regex=None, last=False, wait=12, optional=False):
             note(f"toque: {label} ({x},{y})")
             time.sleep(1.5)
             return True
+        # Aviso do sistema ("... isn't responding") por cima do app: manda esperar e segue.
+        waiting = find("Wait")
+        if waiting:
+            x, y = center(waiting[0])
+            adb("shell", "input", "tap", str(x), str(y))
+            time.sleep(2)
+            continue
         if time.time() > deadline:
             note(f"NAO ENCONTRADO: {label}")
             if not optional:
                 failures.append(label)
+                texts = [n.get("text") or n.get("content-desc") for n in nodes()]
+                note("   na tela: " + " | ".join(t for t in texts if t)[:900])
             return False
         time.sleep(1)
 
@@ -116,6 +126,37 @@ def go_tab(name):
     return False
 
 
+def tap_field(label, index):
+    """Toca em um campo de texto pelo rótulo ou, se não achar, pela posição na tela."""
+    if tap(label, wait=3, optional=True):
+        return
+    fields = [n for n in nodes() if n.get("class") == "android.widget.EditText"]
+    if index < len(fields):
+        x, y = center(fields[index])
+        adb("shell", "input", "tap", str(x), str(y))
+        note(f"toque: campo {index} ({x},{y})")
+        time.sleep(1.5)
+    else:
+        note(f"NAO ENCONTRADO: campo {label}")
+        failures.append(label)
+
+
+def go_next_workday():
+    """Escolhe na agenda o próximo dia com atendimento, para haver horários livres."""
+    raw = adb("shell", "date", "+%Y-%m-%d").stdout.decode().strip()
+    today = datetime.date.fromisoformat(raw)
+    target = today + datetime.timedelta(days=1)
+    while target.weekday() == 6:
+        target += datetime.timedelta(days=1)
+
+    def week_start(d):
+        return d - datetime.timedelta(days=(d.weekday() + 1) % 7)
+
+    if week_start(target) != week_start(today):
+        tap("Próxima semana")
+    tap(str(target.day))
+
+
 def pick_time():
     if not tap(regex=r"\d\d:\d\d", wait=4, optional=True):
         tap("Outro horário")
@@ -130,15 +171,21 @@ def main():
     adb("logcat", "-c")
     adb("shell", "am", "start", "-n", PKG + "/.MainActivity")
     time.sleep(8)
-    shot("01-agenda-vazia")
+    for _ in range(20):
+        if visible("Agendar"):
+            break
+        tap("Wait", wait=2, optional=True)
+    shot("01-agenda-hoje")
+    go_next_workday()
+    shot("01b-agenda-proximo-dia")
 
     # ---- Novo agendamento, com cadastro rápido de cliente
     tap("Agendar")
     shot("02-agendamento-novo")
     tap("Escolher cliente")
-    tap("Nome")
+    tap_field("Nome", 0)
     type_text("Maria Silva")
-    tap("WhatsApp (com DDD)")
+    tap_field("WhatsApp (com DDD)", 1)
     type_text("11998484660")
     shot("03-cliente-rapida")
     tap("Salvar")

@@ -163,7 +163,7 @@ fun ClientsScreen(onOpenClient: (Long) -> Unit, onNewClient: () -> Unit) {
             onClick = onNewClient,
             containerColor = Brand.Bronze,
             contentColor = Color.White,
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            icon = { Icon(Icons.Filled.Add, contentDescription = "Nova cliente") },
             text = { Text("Nova cliente") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)

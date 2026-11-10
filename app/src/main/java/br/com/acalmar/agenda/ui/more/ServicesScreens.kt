@@ -113,7 +113,7 @@ fun ServicesScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                 onClick = { onOpen(0L) },
                 containerColor = Brand.Bronze,
                 contentColor = Color.White,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Filled.Add, contentDescription = "Novo serviço") },
                 text = { Text("Novo serviço") },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

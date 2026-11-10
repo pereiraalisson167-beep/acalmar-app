@@ -232,7 +232,7 @@ fun AgendaScreen(
                 if (dayHours.open && dayItems.isEmpty()) {
                     item(key = "past-empty") {
                         Text(
-                            "Nenhum registro neste dia.",
+                            if (selectedDay == todayDay) "Sem horários livres pelo resto do dia." else "Nenhum registro neste dia.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Brand.BrownSoft,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 24.dp)
@@ -261,7 +261,7 @@ fun AgendaScreen(
                 onClick = { onNewAppointment(selectedDay, -1) },
                 containerColor = Brand.Bronze,
                 contentColor = Color.White,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Filled.Add, contentDescription = "Agendar") },
                 text = { Text("Agendar") }
             )
         }

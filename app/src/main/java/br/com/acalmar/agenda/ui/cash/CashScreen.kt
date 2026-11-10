@@ -232,7 +232,7 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
             onClick = { creating = true },
             containerColor = Brand.Bronze,
             contentColor = Color.White,
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            icon = { Icon(Icons.Filled.Add, contentDescription = "Lançar") },
             text = { Text("Lançar") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
