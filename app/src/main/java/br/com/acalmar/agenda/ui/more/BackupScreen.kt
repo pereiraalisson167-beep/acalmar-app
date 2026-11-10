@@ -47,6 +47,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
+private fun plural(count: Int, one: String, many: String): String = "$count " + if (count == 1) one else many
+
 /** Backup: salva todos os dados em um arquivo (por exemplo, no Google Drive) e restaura a partir dele. */
 @Composable
 fun BackupScreen(onBack: () -> Unit) {
@@ -93,8 +95,9 @@ fun BackupScreen(onBack: () -> Unit) {
                 val loaded = result.getOrNull()
                 if (loaded != null) {
                     val file = loaded.second
-                    pendingSummary = "${file.clients.size} clientes, ${file.appointments.size} agendamentos e " +
-                        "${file.cash.size} lançamentos de caixa"
+                    pendingSummary = plural(file.clients.size, "cliente", "clientes") + ", " +
+                        plural(file.appointments.size, "agendamento", "agendamentos") + " e " +
+                        plural(file.cash.size, "lançamento de caixa", "lançamentos de caixa")
                     pendingImport = loaded.first
                 } else {
                     notifier.show("O arquivo escolhido não é um backup do Acalmar")
