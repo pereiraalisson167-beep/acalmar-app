@@ -169,21 +169,19 @@ fun SellPackageScreen(clientId: Long, onDone: () -> Unit) {
                 IntField(
                     value = validityDays,
                     onChange = { validityDays = it },
-                    label = "Validade",
-                    suffix = "dias",
+                    label = "Validade em dias",
                     modifier = Modifier.weight(1f)
                 )
                 IntField(
                     value = usedBefore,
                     onChange = { usedBefore = it },
-                    label = "Já feitas",
-                    suffix = "sessões",
+                    label = "Sessões já feitas",
                     modifier = Modifier.weight(1f),
                     maxDigits = 2
                 )
             }
             Text(
-                "Validade em branco = pacote sem prazo. \"Já feitas\" serve para pacotes que começaram antes do app.",
+                "Validade em branco = pacote sem prazo. \"Sessões já feitas\" serve para pacotes que começaram antes do app.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Brand.BrownSoft
             )

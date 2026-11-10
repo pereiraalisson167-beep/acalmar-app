@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -24,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -108,18 +110,9 @@ fun AcalmarRoot() {
     val showBar = tabs.any { it.route == currentRoute }
 
     CompositionLocalProvider(LocalNotifier provides notifier) {
+        Box(Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
-            snackbarHost = {
-                SnackbarHost(snackbar) { data ->
-                    Snackbar(
-                        snackbarData = data,
-                        containerColor = Brand.Brown,
-                        contentColor = Brand.Cream,
-                        shape = MaterialTheme.shapes.small
-                    )
-                }
-            },
             bottomBar = {
                 if (showBar) {
                     NavigationBar(containerColor = Brand.Card, tonalElevation = androidx.compose.ui.unit.Dp(0f)) {
@@ -150,6 +143,21 @@ fun AcalmarRoot() {
             ) {
                 AcalmarNavHost(nav)
             }
+        }
+        // Avisos curtos aparecem no topo, para não cobrir os botões de ação.
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+        ) { data ->
+            Snackbar(
+                snackbarData = data,
+                containerColor = Brand.Brown,
+                contentColor = Brand.Cream,
+                shape = MaterialTheme.shapes.small
+            )
+        }
         }
     }
 }

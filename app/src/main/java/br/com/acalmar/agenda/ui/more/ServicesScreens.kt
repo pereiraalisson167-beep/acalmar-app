@@ -279,8 +279,7 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
                         IntField(
                             value = draft.validityDays,
                             onChange = { drafts[index] = draft.copy(validityDays = it) },
-                            label = "Validade (opcional)",
-                            suffix = "dias",
+                            label = "Validade em dias (opcional)",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(end = 8.dp)

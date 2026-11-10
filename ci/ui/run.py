@@ -225,6 +225,21 @@ def main():
     shot("14-agendamento-com-pacote")
     tap("Agendar", last=True)
     shot("15-ficha-apos-repeticao")
+
+    # ---- Falta com pacote, desmarcar em série e editar
+    tap(regex=r".* · 08:00 · pacote")
+    tap("Faltou")
+    shot("15b-falta-pacote")
+    tap("Descontar")
+    tap(regex=r".* · 08:00 · pacote")
+    tap("Desmarcou")
+    shot("15c-desmarcar-serie")
+    tap("Só esta")
+    tap(regex=r".* · 08:00 · pacote")
+    tap("Editar")
+    shot("15d-editar-agendamento")
+    tap("Salvar alterações")
+    shot("15e-ficha-final")
     back()
 
     # ---- Caixa
@@ -248,7 +263,22 @@ def main():
     back()
     tap("Backup")
     shot("22-backup")
+    tap("Fazer backup agora")
+    shot("22b-salvar-arquivo")
+    tap(regex=r"(?i)save|salvar")
+    shot("22c-backup-feito")
+    tap("Restaurar um backup")
+    shot("22d-escolher-arquivo")
+    tap(regex=r"acalmar-backup-.*\.json")
+    shot("22e-confirmar-restauracao")
+    tap("Restaurar")
+    shot("22f-restaurado")
     back()
+    go_tab("Clientes")
+    if not visible("Maria Silva"):
+        failures.append("dados depois de restaurar o backup")
+    shot("22g-clientes-apos-restaurar")
+    go_tab("Mais")
 
     # ---- Bloqueio de horário e agenda final
     go_tab("Agenda")
@@ -258,6 +288,14 @@ def main():
     hide_keyboard()
     tap("Bloquear")
     shot("24-agenda-final")
+    tap("Escolher data")
+    shot("24b-calendario")
+    tap(regex=r"(?i)cancelar|cancel")
+    adb("shell", "am", "start", "-a", "android.settings.APPLICATION_DETAILS_SETTINGS", "-d", "package:" + PKG)
+    time.sleep(3)
+    shot("25-icone-do-app")
+    adb("shell", "am", "start", "-n", PKG + "/.MainActivity")
+    time.sleep(2)
 
     crashes = adb("logcat", "-d", "-s", "AndroidRuntime:E").stdout.decode("utf-8", "ignore")
     with open(os.path.join(OUT, "crashes.txt"), "w") as f:

@@ -151,7 +151,12 @@ fun ClientDetailScreen(
                     }
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onSchedule, modifier = Modifier.weight(1.3f), shape = MaterialTheme.shapes.medium) {
+                        Button(
+                            onClick = onSchedule,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium,
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
                             Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Agendar")
@@ -161,8 +166,9 @@ fun ClientDetailScreen(
                                 onClick = {
                                     if (!openWhatsApp(context, current.phone)) notifier.show("Confira o número: precisa ter DDD")
                                 },
-                                modifier = Modifier.weight(1.3f),
-                                shape = MaterialTheme.shapes.medium
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.medium,
+                                contentPadding = PaddingValues(horizontal = 12.dp)
                             ) {
                                 Icon(Icons.Outlined.Sms, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -170,8 +176,9 @@ fun ClientDetailScreen(
                             }
                             OutlinedButton(
                                 onClick = { dialPhone(context, current.phone) },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
+                                modifier = Modifier.width(60.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                contentPadding = PaddingValues(0.dp)
                             ) {
                                 Icon(Icons.Outlined.Phone, contentDescription = "Ligar", modifier = Modifier.size(18.dp))
                             }
@@ -361,7 +368,9 @@ private fun PackageCard(state: PackageState, todayDay: Long, onDelete: () -> Uni
                         .fillMaxWidth()
                         .height(6.dp),
                     color = Brand.Bronze,
-                    trackColor = Brand.Beige
+                    trackColor = Brand.Beige,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {}
                 )
                 Spacer(Modifier.height(8.dp))
                 val parts = buildList {
