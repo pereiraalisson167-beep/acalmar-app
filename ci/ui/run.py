@@ -22,6 +22,17 @@ PKG = "br.com.acalmar.agenda"
 os.makedirs(OUT, exist_ok=True)
 steps = open(os.path.join(OUT, "steps.txt"), "w")
 failures = []
+MAX_FAILURES = 8
+
+
+class Abort(Exception):
+    """Falhas demais: o roteiro se perdeu e não adianta continuar."""
+
+
+def fail(description):
+    failures.append(description)
+    if len(failures) >= MAX_FAILURES:
+        raise Abort()
 
 
 def adb(*args, timeout=90):
@@ -127,8 +138,8 @@ def tap(text=None, regex=None, last=False, nth=None, wait=12, optional=False, sc
                 continue
             note(f"NAO ENCONTRADO: {label}")
             if not optional:
-                failures.append(label)
                 note("   na tela: " + " | ".join(t for t in (label_of(n) for n in nodes()) if t)[:900])
+                fail(label)
             return False
         time.sleep(1)
 
@@ -142,7 +153,7 @@ def check(description, condition):
         note("ok: " + description)
     else:
         note("FALHOU: " + description)
-        failures.append(description)
+        fail(description)
 
 
 def shot(name):
@@ -174,7 +185,7 @@ def go_tab(name):
         if tap(name, wait=3, optional=True, scrolls=0):
             return True
         back()
-    failures.append("aba " + name)
+    fail("aba " + name)
     return False
 
 
@@ -190,7 +201,7 @@ def tap_field(label, index):
         time.sleep(1.5)
     else:
         note(f"NAO ENCONTRADO: campo {label}")
-        failures.append(label)
+        fail(label)
 
 
 def device_today():
@@ -248,12 +259,14 @@ def dump_screen(title):
     note(f"   tela {title}: " + " | ".join(parts)[:1500])
 
 
-def find_control(pattern):
-    """Botão de outro app pelo texto, descrição ou identificador."""
-    for n in nodes():
-        rid = n.get("resource-id") or ""
-        if re.search(pattern, label_of(n) or "") or re.search(pattern, rid):
-            return n
+def find_control(*patterns):
+    """Botão de outro app pelo identificador, texto ou descrição; os padrões vão do mais exato ao mais geral."""
+    found = nodes()
+    for pattern in patterns:
+        for n in found:
+            rid = (n.get("resource-id") or "").split("/")[-1]
+            if re.fullmatch(pattern, rid) or re.fullmatch(pattern, label_of(n) or ""):
+                return n
     return None
 
 
@@ -266,7 +279,7 @@ def take_photo(name):
         tap(label, optional=True, scrolls=0, wait=1)
     dump_screen("camera")
     w, h = screen_size()
-    shutter = find_control(r"(?i)shutter|take photo|take picture|capture|photo_button")
+    shutter = find_control(r"shutter_button", r"(?i)shutter", r"(?i)take (photo|picture)")
     if shutter is not None:
         x, y = center(shutter)
     else:
@@ -277,7 +290,7 @@ def take_photo(name):
     shot(name + "-camera")
     if not visible("Nova foto"):
         dump_screen("camera depois do disparo")
-        done = find_control(r"(?i)\bdone\b|confirm|accept|ok_button|done_button|btn_done")
+        done = find_control(r"done_button", r"(?i)done", r"(?i)ok|confirm|accept")
         if done is not None:
             dx, dy = center(done)
         else:
@@ -302,8 +315,8 @@ def take_photo(name):
 def draw_signature():
     pads = find("Área de assinatura")
     if not pads:
-        failures.append("área de assinatura")
         note("NAO ENCONTRADO: área de assinatura")
+        fail("área de assinatura")
         return
     x1, y1, x2, y2 = bounds(pads[0])
     w, h = x2 - x1, y2 - y1
@@ -353,6 +366,15 @@ def main():
     apk = sys.argv[1]
     old_apk = sys.argv[2] if len(sys.argv) > 2 else None
     adb("logcat", "-c")
+    try:
+        walk(apk, old_apk)
+    except Abort:
+        note(f"roteiro interrompido depois de {len(failures)} falhas")
+        shot("99-onde-parou")
+    return report()
+
+
+def walk(apk, old_apk):
 
     # ---- Versão publicada: cria dados reais antes de atualizar
     if old_apk:
@@ -420,13 +442,12 @@ def main():
         time.sleep(4)
         shot("24b-antes-e-depois")
         tap("Fechar", optional=True, scrolls=0)
-    tap(regex=r"Foto: .*", optional=True, scrolls=0)
-    time.sleep(2)
-    shot("24c-foto-ampliada")
-    back()
-    if not visible("Tirar foto"):
+    if tap(regex=r"Foto: .*", optional=True, scrolls=0):
+        time.sleep(2)
+        shot("24c-foto-ampliada")
         back()
-    back()
+    if visible("Tirar foto"):
+        back()
 
     # Orçamento a partir da ficha da cliente.
     tap("Orçamentos")
@@ -573,6 +594,9 @@ def main():
     else:
         note("aviso: lista de chamar de volta nao apareceu (relogio do emulador nao mudou?)")
 
+
+
+def report():
     crashes = adb("logcat", "-d", "-s", "AndroidRuntime:E").stdout.decode("utf-8", "ignore")
     with open(os.path.join(OUT, "crashes.txt"), "w") as f:
         f.write(crashes)
