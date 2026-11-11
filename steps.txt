@@ -1,0 +1,199 @@
+instalando versao publicada: ui-old.apk
+Serving...
+Performing Incremental Install
+Success
+Install command complete in 4876 ms
+All files should be loaded. Notifying the device.
+ok: instalacao de versao publicada
+imagem: 00-versao-publicada
+toque: 12 (664,432)
+imagem: 00-01-agenda-proximo-dia
+toque: Agendar (783,2011)
+imagem: 00-02-agendamento-novo
+toque: Escolher cliente (327,416)
+toque: Nome (285,1064)
+toque: WhatsApp (com DDD) (442,848)
+imagem: 00-03-cliente-rapida
+toque: Salvar (813,1206)
+toque: Escolher serviço (333,605)
+toque: Drenagem linfática (404,712)
+toque: \d\d:\d\d (130,1032)
+imagem: 00-04-agendamento-preenchido
+toque: Agendar (540,2236)
+imagem: 00-05-agenda-com-horario
+toque: Maria Silva (396,692)
+imagem: 00-06-detalhes-atendimento
+toque: Concluir atendimento (577,1771)
+imagem: 00-07-concluir
+toque: Concluir (796,1626)
+imagem: 00-08-agenda-atendido
+instalando versao nova por cima: ui-new.apk
+Serving...
+Performing Incremental Install
+Success
+Install command complete in 474 ms
+All files should be loaded. Notifying the device.
+ok: instalacao de versao nova por cima
+imagem: 10-versao-nova-abertura
+toque: 12 (664,432)
+ok: atendimento da versao anterior continua na agenda
+imagem: 11-agenda-apos-atualizar
+toque: Clientes (402,2274)
+imagem: 12-clientes
+toque: Maria Silva (335,553)
+imagem: 13-ficha-cliente
+toque: Ficha de anamnese (337,722)
+imagem: 14-anamnese
+toque: Sim (797,980)
+toque: Detalhes (172,1148)
+imagem: 15-anamnese-preenchida
+toque: Salvar ficha (540,2236)
+ok: aviso de alergia na ficha da cliente
+imagem: 16-ficha-com-aviso
+toque: Termo de consentimento (382,974)
+imagem: 17-termo
+assinatura desenhada
+imagem: 18-termo-assinando
+toque: Salvar termo assinado (540,2236)
+imagem: 19-termo-assinado
+toque: Ver e enviar o PDF (577,2036)
+imagem: 20-termo-pdf
+toque: Fechar (74,202)
+ok: termo assinado aparece na ficha
+toque: Fotos de antes e depois (373,1136)
+imagem: 21-fotos-vazio
+toque: Tirar foto (321,528)
+NAO ENCONTRADO: While using the app
+NAO ENCONTRADO: Only this time
+NAO ENCONTRADO: Allow
+NAO ENCONTRADO: ALLOW
+NAO ENCONTRADO: OK
+NAO ENCONTRADO: Next
+NAO ENCONTRADO: Skip
+   tela camera: -[decor_content_parent]@[0,128][1080,2337] | -[content]@[0,128][1080,2337] | -[activity_root_view]@[0,128][1080,2337] | -[camera_app_root]@[0,128][1080,2337] | -[preview_content]@[0,128][1080,2337] | -[focus_ring]@[0,128][1080,2337] | -[preview_overlay]@[0,128][1080,2337] | -[face_view]@[0,128][1080,2337] | -[module_layout]@[0,128][1080,2337] | -[progress_overlay]@[0,582][1080,2022] | -[sticky_bottom_capture_layout]@[0,128][1080,2337] | -[mode_options_overlay]@[0,582][1080,2022] | Options[mode_options_toggle]@[921,1862][1048,1990] | Options[three_dots]@[953,1894][1016,1957] | -[bottom_bar]@[0,2022][1080,2337] | -[bottombar_capture]@[0,2022][1080,2337] | Shutter[shutter_button]@[0,2022][1080,2337] | -[navigationBarBackground]@[0,2337][1080,2400]
+disparo da camera (540,2179)
+imagem: 22-camera
+   tela camera depois do disparo: -[decor_content_parent]@[0,128][1080,2337] | -[content]@[0,128][1080,2337] | -[activity_root_view]@[0,128][1080,2337] | -[camera_app_root]@[0,128][1080,2337] | -[preview_content]@[0,128][1080,2337] | -[focus_ring]@[0,128][1080,2337] | -[preview_overlay]@[0,128][1080,2337] | -[face_view]@[0,128][1080,2337] | -[module_layout]@[0,128][1080,2337] | -[progress_overlay]@[0,582][1080,2022] | -[sticky_bottom_capture_layout]@[0,128][1080,2337] | -[bottom_bar]@[0,2022][1080,2337] | -[bottombar_intent_review]@[0,2022][1080,2337] | Retake[retake_button]@[0,2074][210,2284] | Done[done_button]@[429,2069][650,2290] | Cancel[cancel_button]@[870,2074][1080,2284] | -[intent_review_imageview]@[0,582][1080,2022] | -[navigationBarBackground]@[0,2337][1080,2400]
+confirmar foto (539,2179)
+imagem: 22-nova-foto
+toque: Guardar foto (761,1616)
+toque: Tirar foto (321,528)
+NAO ENCONTRADO: While using the app
+NAO ENCONTRADO: Only this time
+NAO ENCONTRADO: Allow
+NAO ENCONTRADO: ALLOW
+NAO ENCONTRADO: OK
+NAO ENCONTRADO: Next
+NAO ENCONTRADO: Skip
+   tela camera: -[decor_content_parent]@[0,128][1080,2337] | -[content]@[0,128][1080,2337] | -[activity_root_view]@[0,128][1080,2337] | -[camera_app_root]@[0,128][1080,2337] | -[preview_content]@[0,128][1080,2337] | -[focus_ring]@[0,128][1080,2337] | -[preview_overlay]@[0,128][1080,2337] | -[face_view]@[0,128][1080,2337] | -[module_layout]@[0,128][1080,2337] | -[progress_overlay]@[0,582][1080,2022] | -[sticky_bottom_capture_layout]@[0,128][1080,2337] | -[mode_options_overlay]@[0,582][1080,2022] | Options[mode_options_toggle]@[921,1862][1048,1990] | Options[three_dots]@[953,1894][1016,1957] | -[bottom_bar]@[0,2022][1080,2337] | -[bottombar_capture]@[0,2022][1080,2337] | Shutter[shutter_button]@[0,2022][1080,2337] | -[navigationBarBackground]@[0,2337][1080,2400]
+disparo da camera (540,2179)
+imagem: 23-camera
+   tela camera depois do disparo: -[decor_content_parent]@[0,128][1080,2337] | -[content]@[0,128][1080,2337] | -[activity_root_view]@[0,128][1080,2337] | -[camera_app_root]@[0,128][1080,2337] | -[preview_content]@[0,128][1080,2337] | -[focus_ring]@[0,128][1080,2337] | -[preview_overlay]@[0,128][1080,2337] | -[face_view]@[0,128][1080,2337] | -[module_layout]@[0,128][1080,2337] | -[progress_overlay]@[0,582][1080,2022] | -[sticky_bottom_capture_layout]@[0,128][1080,2337] | -[bottom_bar]@[0,2022][1080,2337] | -[bottombar_intent_review]@[0,2022][1080,2337] | Retake[retake_button]@[0,2074][210,2284] | Done[done_button]@[429,2069][650,2290] | Cancel[cancel_button]@[870,2074][1080,2284] | -[intent_review_imageview]@[0,582][1080,2022] | -[navigationBarBackground]@[0,2337][1080,2400]
+confirmar foto (539,2179)
+imagem: 23-nova-foto
+toque: Guardar foto (761,1616)
+imagem: 24-fotos
+ok: duas fotos guardadas (antes e depois)
+toque: Antes e depois (915,212)
+imagem: 24b-antes-e-depois
+toque: Fechar (74,202)
+toque: Foto: .* (203,884)
+imagem: 24c-foto-ampliada
+toque: Orçamentos (279,1298)
+imagem: 25-orcamentos-cliente
+toque: Novo orçamento (651,2221)
+toque: Adicionar item (303,939)
+imagem: 26-orcamento-itens
+toque: Pacote de 5 sessões · Drenagem linfática (540,1202)
+imagem: 27-orcamento-preenchido
+toque: Salvar orçamento (540,2236)
+imagem: 28-orcamento-pronto
+toque: .* · \d\d:\d\d (172,2044)
+imagem: 29-atendimento-concluido
+toque: Anotar (939,1829)
+toque: O que foi feito, regiões trabalhadas, como a cliente respondeu, orientações (540,1189)
+toque: Salvar (813,1475)
+ok: evolucao aparece no atendimento
+imagem: 30-atendimento-com-evolucao
+ok: evolucao aparece no historico
+imagem: 30b-historico-evolucao
+toque: Vender pacote (888,1509)
+toque: Escolher serviço (333,416)
+toque: Drenagem linfática (404,757)
+imagem: 31-vender-pacote
+toque: Salvar pacote (540,2236)
+toque: Agendar (273,665)
+toque: Escolher serviço (333,605)
+toque: Drenagem linfática (404,712)
+toque: \d\d:\d\d (130,1242)
+toque: Repetir (224,1923)
+toque: Toda semana (350,1137)
+imagem: 32-agendamento-com-pacote
+toque: Agendar (540,2236)
+imagem: 33-ficha-apos-repeticao
+toque: .* · \d\d:\d\d · pacote (212,2155)
+toque: Faltou (824,2055)
+imagem: 34-falta-pacote
+toque: Descontar (781,1448)
+toque: .* · \d\d:\d\d · pacote (271,2155)
+toque: Desmarcou (324,2055)
+imagem: 35-desmarcar-serie
+toque: Só esta (803,1380)
+toque: .* · \d\d:\d\d · pacote (271,2155)
+toque: Editar (698,2221)
+toque: Salvar alterações (540,2236)
+imagem: 36-ficha-final
+toque: Caixa (678,2274)
+imagem: 37-caixa
+toque: Lançar (809,2011)
+imagem: 38-novo-lancamento
+toque: Cancelar (604,1732)
+toque: Mais (952,2274)
+imagem: 39-mais
+toque: Orçamentos (308,955)
+imagem: 40-orcamentos
+toque: Maria Silva (187,370)
+imagem: 41-orcamento-aberto
+toque: Serviços e pacotes (373,1160)
+imagem: 42-servicos
+toque: Drenagem linfática (540,370)
+imagem: 43-editar-servico
+toque: Horário de atendimento (419,1407)
+imagem: 44-horario
+toque: Fichas e termo (333,1612)
+imagem: 45-fichas-e-termo
+toque: Perguntas da ficha de anamnese (506,385)
+imagem: 46-modelo-anamnese
+toque: Texto do termo de consentimento (516,590)
+imagem: 47-texto-termo
+toque: Dados do negócio (363,1859)
+imagem: 48-dados-negocio
+toque: Backup (262,2064)
+imagem: 49-backup
+toque: Fazer backup agora (577,792)
+imagem: 50-salvar-arquivo
+toque: (?i)save|salvar (927,2274)
+imagem: 51-backup-feito
+toque: Restaurar um backup (577,1183)
+imagem: 52-escolher-arquivo
+toque: acalmar-backup-.* (346,1186)
+imagem: 53-confirmar-restauracao
+toque: Restaurar (785,1433)
+imagem: 54-restaurado
+toque: Clientes (402,2274)
+ok: dados depois de restaurar o backup
+toque: Maria Silva (335,553)
+ok: ficha, termo e evolucao depois de restaurar
+imagem: 55-ficha-apos-restaurar
+toque: Agenda (127,2274)
+toque: Bloquear horário (975,1843)
+imagem: 56-bloqueio
+toque: Almoço (147,580)
+toque: Bloquear (540,2236)
+imagem: 57-agenda-final
+toque: Clientes (402,2274)
+imagem: 58-clientes-45-dias-depois
+toque: Hora de chamar de volta (378,554)
+imagem: 59-chamar-de-volta
+ok: Maria na lista de chamar de volta
+app em execucao: True; erro fatal: False; passos nao encontrados: []
