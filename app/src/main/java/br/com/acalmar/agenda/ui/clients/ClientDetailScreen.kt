@@ -225,7 +225,8 @@ fun ClientDetailScreen(
                             title = "Ficha de anamnese",
                             status = anamnesis?.let { a ->
                                 val count = AnamnesisModel.answeredCount(template, answers)
-                                "Preenchida em ${formatDateShort(dateOfMillis(a.updatedAt))} · $count respostas"
+                                "Preenchida em ${formatDateShort(dateOfMillis(a.updatedAt))} · " +
+                                    if (count == 1) "1 resposta" else "$count respostas"
                             } ?: "Ainda não preenchida",
                             pending = anamnesis == null,
                             onClick = onAnamnesis
@@ -258,8 +259,8 @@ fun ClientDetailScreen(
                             title = "Orçamentos",
                             status = when {
                                 quotes.isEmpty() -> "Nenhum orçamento"
-                                openQuotes > 0 -> "${quotes.size} no total · $openQuotes em aberto"
-                                quotes.size == 1 -> "1 orçamento"
+                                quotes.size == 1 -> if (openQuotes == 1) "1 orçamento em aberto" else "1 orçamento"
+                                openQuotes > 0 -> "${quotes.size} orçamentos · $openQuotes em aberto"
                                 else -> "${quotes.size} orçamentos"
                             },
                             onClick = onQuotes

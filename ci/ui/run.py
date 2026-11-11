@@ -237,6 +237,68 @@ def install(apk, label):
     check(f"instalacao de {label}", "Success" in out)
 
 
+def dump_screen(title):
+    """Registra os elementos da tela atual (útil para telas de outros apps, como a câmera)."""
+    parts = []
+    for n in nodes():
+        rid = (n.get("resource-id") or "").split("/")[-1]
+        lab = label_of(n)
+        if rid or lab:
+            parts.append(f"{lab or '-'}[{rid}]@{n.get('bounds')}")
+    note(f"   tela {title}: " + " | ".join(parts)[:1500])
+
+
+def find_control(pattern):
+    """Botão de outro app pelo texto, descrição ou identificador."""
+    for n in nodes():
+        rid = n.get("resource-id") or ""
+        if re.search(pattern, label_of(n) or "") or re.search(pattern, rid):
+            return n
+    return None
+
+
+def take_photo(name):
+    """Tira uma foto com a câmera do emulador e guarda na ficha com o tipo sugerido."""
+    if not tap("Tirar foto", optional=True):
+        return False
+    time.sleep(5)
+    for label in ("While using the app", "Only this time", "Allow", "ALLOW", "OK", "Next", "Skip"):
+        tap(label, optional=True, scrolls=0, wait=1)
+    dump_screen("camera")
+    w, h = screen_size()
+    shutter = find_control(r"(?i)shutter|take photo|take picture|capture|photo_button")
+    if shutter is not None:
+        x, y = center(shutter)
+    else:
+        x, y = w // 2, int(h * 0.905)
+    adb("shell", "input", "tap", str(x), str(y))
+    note(f"disparo da camera ({x},{y})")
+    time.sleep(4)
+    shot(name + "-camera")
+    if not visible("Nova foto"):
+        dump_screen("camera depois do disparo")
+        done = find_control(r"(?i)\bdone\b|confirm|accept|ok_button|done_button|btn_done")
+        if done is not None:
+            dx, dy = center(done)
+        else:
+            dx, dy = x, y
+        adb("shell", "input", "tap", str(dx), str(dy))
+        note(f"confirmar foto ({dx},{dy})")
+        time.sleep(4)
+    ok = visible("Nova foto")
+    shot(name + "-nova-foto")
+    if ok:
+        tap("Guardar foto")
+        time.sleep(3)
+    else:
+        note("aviso: a camera nao devolveu a foto")
+        for _ in range(3):
+            if visible("Tirar foto"):
+                break
+            back()
+    return ok
+
+
 def draw_signature():
     pads = find("Área de assinatura")
     if not pads:
@@ -347,22 +409,23 @@ def main():
     back()
     check("termo assinado aparece na ficha", visible(regex=r"Assinado em .*"))
 
-    # Fotos: tira uma foto com a câmera do emulador.
+    # Fotos: tira duas fotos com a câmera do emulador (antes e depois) e compara.
     tap("Fotos de antes e depois")
     shot("21-fotos-vazio")
-    if tap("Tirar foto", optional=True):
-        time.sleep(4)
-        tap("Allow", optional=True, scrolls=0, wait=3)
-        tap("While using the app", optional=True, scrolls=0, wait=3)
-        shot("22-camera")
-        if tap(regex=r"(?i)shutter|take photo|capture", optional=True, scrolls=0, wait=8):
-            time.sleep(3)
-            tap(regex=r"(?i)done|ok|confirm|✓", optional=True, scrolls=0, wait=8)
-        time.sleep(3)
-        shot("23-nova-foto")
-        if tap("Guardar foto", optional=True, scrolls=0):
-            time.sleep(3)
+    first = take_photo("22")
+    second = take_photo("23") if first else False
     shot("24-fotos")
+    check("duas fotos guardadas (antes e depois)", first and second and visible(regex=r"Foto: Antes") and visible(regex=r"Foto: Depois"))
+    if tap("Antes e depois", optional=True, scrolls=0):
+        time.sleep(4)
+        shot("24b-antes-e-depois")
+        tap("Fechar", optional=True, scrolls=0)
+    tap(regex=r"Foto: .*", optional=True, scrolls=0)
+    time.sleep(2)
+    shot("24c-foto-ampliada")
+    back()
+    if not visible("Tirar foto"):
+        back()
     back()
 
     # Orçamento a partir da ficha da cliente.
