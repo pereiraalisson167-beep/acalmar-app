@@ -600,6 +600,12 @@ def report():
     crashes = adb("logcat", "-d", "-s", "AndroidRuntime:E").stdout.decode("utf-8", "ignore")
     with open(os.path.join(OUT, "crashes.txt"), "w") as f:
         f.write(crashes)
+    warnings = adb("logcat", "-d", "-s", "Acalmar:W").stdout.decode("utf-8", "ignore")
+    with open(os.path.join(OUT, "avisos-do-app.txt"), "w") as f:
+        f.write(warnings)
+    if "Falha" in warnings:
+        note("avisos do app: " + warnings[-1500:])
+        failures.append("avisos de falha no log do app")
     running = adb("shell", "pidof", PKG).stdout.decode().strip()
     crashed = "FATAL EXCEPTION" in crashes
     note(f"app em execucao: {bool(running)}; erro fatal: {crashed}; passos nao encontrados: {failures}")

@@ -1,6 +1,7 @@
 package br.com.acalmar.agenda.ui.clients
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -264,6 +265,7 @@ fun PhotosScreen(clientId: Long, onBack: () -> Unit) {
                 saving = true
                 scope.launch {
                     val result = runCatching { repo.addPhoto(clientId, Uri.parse(pending), kind, takenOn, note) }
+                    result.exceptionOrNull()?.let { Log.w("Acalmar", "Falha ao guardar a foto", it) }
                     saving = false
                     pendingUri = null
                     notifier.show(if (result.isSuccess) "Foto guardada" else "Não foi possível guardar a foto")

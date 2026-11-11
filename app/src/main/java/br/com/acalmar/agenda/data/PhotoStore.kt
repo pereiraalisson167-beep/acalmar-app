@@ -38,9 +38,11 @@ class PhotoStore(context: Context) {
     fun importFrom(uri: Uri): String {
         val resolver = appContext.contentResolver
 
+        // Primeiro só as medidas da imagem. Nesse modo o Android não devolve imagem nenhuma
+        // (o retorno é sempre nulo): o que importa são as medidas preenchidas em `bounds`.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: throw IOException("Não foi possível abrir a imagem.")
+        val boundsStream = resolver.openInputStream(uri) ?: throw IOException("Não foi possível abrir a imagem.")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IOException("O arquivo escolhido não é uma imagem.")
 
         var sample = 1
