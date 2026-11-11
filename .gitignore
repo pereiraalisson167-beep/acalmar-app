@@ -15,3 +15,4 @@ report*.md
 __pycache__/
 ui-out/
 ui-test.apk
+ui.keystore

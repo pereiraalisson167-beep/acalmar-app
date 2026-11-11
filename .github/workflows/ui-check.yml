@@ -2,7 +2,7 @@ name: Conferir telas
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'app/**'
       - 'ci/ui/**'
@@ -34,11 +34,34 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Gerar o APK (mesma configuração da versão final, assinatura de teste)
+      - name: Testes e APK (mesma configuração da versão final)
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --console=plain assembleRelease
-          cp "$(ls app/build/outputs/apk/release/*.apk | head -n 1)" ui-test.apk
+          ./gradlew --no-daemon --console=plain -PciVersionCode=9999 \
+            testReleaseUnitTest assembleRelease 2>&1 | tee build.log
+          cp "$(ls app/build/outputs/apk/release/*.apk | head -n 1)" ui-built.apk
+
+      - name: Relatar falha
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ci/report-failure.sh build.log
+
+      # Para conferir que a versão nova instala por cima da que a cliente já usa sem perder dados,
+      # a versão publicada e a nova recebem a mesma assinatura de teste.
+      - name: Preparar a versão anterior e assinar as duas para o teste
+        run: |
+          set -e
+          curl -fsSL -o old-release.apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/v1.0.0-5/acalmar.apk"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
+          keytool -genkeypair -keystore ui.keystore -storetype PKCS12 -storepass android -keypass android \
+            -alias ui -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Teste de telas"
+          for pair in "old-release.apk:ui-old.apk" "ui-built.apk:ui-new.apk"; do
+            "$BT/apksigner" sign --ks ui.keystore --ks-pass pass:android --ks-key-alias ui --key-pass pass:android \
+              --out "${pair#*:}" "${pair%%:*}"
+          done
+          ls -la ui-old.apk ui-new.apk
 
       - name: Liberar aceleração do emulador
         run: |
@@ -56,7 +79,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: python3 ci/ui/run.py ui-test.apk
+          script: python3 ci/ui/run.py ui-new.apk ui-old.apk
 
       - name: Publicar as imagens no ramo ui-screens
         if: always()
@@ -64,6 +87,8 @@ jobs:
           set -e
           [ -d ui-out ] || mkdir ui-out
           echo "commit ${GITHUB_SHA} · resultado: ${{ steps.walk.outcome }}" > ui-out/resultado.txt
+          # Estrutura do banco gerada neste build (usada nas próximas atualizações do banco).
+          if [ -d app/schemas ]; then cp -r app/schemas ui-out/schemas; fi
           tmp="$(mktemp -d)"
           cp -r ui-out/. "$tmp/"
           cd "$tmp"

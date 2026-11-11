@@ -84,6 +84,12 @@ android {
     }
 }
 
+// O Room grava em app/schemas a estrutura de cada versão do banco de dados. Esses arquivos
+// são usados para gerar a atualização do banco quando o app ganha tabelas ou campos novos.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -165,6 +165,18 @@ def pick_time():
 
 def main():
     apk = sys.argv[1]
+    old_apk = sys.argv[2] if len(sys.argv) > 2 else None
+    if old_apk:
+        note("instalando a versao anterior " + old_apk)
+        result = adb("install", "-r", old_apk, timeout=300)
+        note(result.stdout.decode("utf-8", "ignore").strip()[-200:])
+        adb("shell", "am", "start", "-n", PKG + "/.MainActivity")
+        time.sleep(8)
+        for _ in range(20):
+            if visible("Agendar"):
+                break
+            tap("Wait", wait=2, optional=True)
+        shot("00-versao-anterior")
     note("instalando " + apk)
     result = adb("install", "-r", apk, timeout=300)
     note(result.stdout.decode("utf-8", "ignore").strip()[-200:])

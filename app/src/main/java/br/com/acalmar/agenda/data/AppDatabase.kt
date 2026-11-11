@@ -17,7 +17,7 @@ import androidx.room.RoomDatabase
         Setting::class
     ],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AppDao
