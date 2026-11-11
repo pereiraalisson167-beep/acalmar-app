@@ -42,15 +42,26 @@ import br.com.acalmar.agenda.ui.agenda.AgendaScreen
 import br.com.acalmar.agenda.ui.agenda.AppointmentFormScreen
 import br.com.acalmar.agenda.ui.agenda.BlockFormScreen
 import br.com.acalmar.agenda.ui.cash.CashScreen
+import br.com.acalmar.agenda.ui.clients.AnamnesisScreen
 import br.com.acalmar.agenda.ui.clients.ClientDetailScreen
 import br.com.acalmar.agenda.ui.clients.ClientFormScreen
 import br.com.acalmar.agenda.ui.clients.ClientsScreen
+import br.com.acalmar.agenda.ui.clients.ConsentScreen
+import br.com.acalmar.agenda.ui.clients.PhotosScreen
+import br.com.acalmar.agenda.ui.clients.RecallScreen
 import br.com.acalmar.agenda.ui.clients.SellPackageScreen
+import br.com.acalmar.agenda.ui.more.AnamnesisTemplateScreen
 import br.com.acalmar.agenda.ui.more.BackupScreen
+import br.com.acalmar.agenda.ui.more.BusinessScreen
+import br.com.acalmar.agenda.ui.more.ConsentTextScreen
+import br.com.acalmar.agenda.ui.more.FormsScreen
 import br.com.acalmar.agenda.ui.more.MoreScreen
 import br.com.acalmar.agenda.ui.more.ServiceFormScreen
 import br.com.acalmar.agenda.ui.more.ServicesScreen
 import br.com.acalmar.agenda.ui.more.WorkHoursScreen
+import br.com.acalmar.agenda.ui.quotes.QuoteFormScreen
+import br.com.acalmar.agenda.ui.quotes.QuoteViewScreen
+import br.com.acalmar.agenda.ui.quotes.QuotesScreen
 import br.com.acalmar.agenda.ui.theme.Brand
 
 /** Endereços das telas. */
@@ -70,6 +81,18 @@ object Routes {
     const val HOURS = "hours"
     const val BACKUP = "backup"
 
+    const val CLIENT_ANAMNESIS = "client/{id}/anamnesis"
+    const val CLIENT_CONSENT = "client/{id}/consent"
+    const val CLIENT_PHOTOS = "client/{id}/photos"
+    const val RECALL = "recall"
+    const val QUOTES = "quotes?clientId={clientId}"
+    const val QUOTE_FORM = "quoteForm?id={id}&clientId={clientId}"
+    const val QUOTE_VIEW = "quote/{id}"
+    const val FORMS = "forms"
+    const val FORMS_ANAMNESIS = "forms/anamnesis"
+    const val FORMS_CONSENT = "forms/consent"
+    const val BUSINESS = "business"
+
     fun apptForm(id: Long = 0, date: Long = -1, start: Int = -1, clientId: Long = 0) =
         "appt?id=$id&date=$date&start=$start&clientId=$clientId"
 
@@ -78,6 +101,12 @@ object Routes {
     fun clientDetail(id: Long) = "client/$id"
     fun sellPackage(clientId: Long) = "client/$clientId/package"
     fun serviceForm(id: Long = 0) = "service?id=$id"
+    fun clientAnamnesis(id: Long) = "client/$id/anamnesis"
+    fun clientConsent(id: Long) = "client/$id/consent"
+    fun clientPhotos(id: Long) = "client/$id/photos"
+    fun quotes(clientId: Long = 0) = "quotes?clientId=$clientId"
+    fun quoteForm(id: Long = 0, clientId: Long = 0) = "quoteForm?id=$id&clientId=$clientId"
+    fun quoteView(id: Long) = "quote/$id"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -187,7 +216,8 @@ private fun AcalmarNavHost(nav: NavHostController) {
         composable(Routes.CLIENTS) {
             ClientsScreen(
                 onOpenClient = { id -> nav.navigate(Routes.clientDetail(id)) },
-                onNewClient = { nav.navigate(Routes.clientForm()) }
+                onNewClient = { nav.navigate(Routes.clientForm()) },
+                onOpenRecall = { nav.navigate(Routes.RECALL) }
             )
         }
         composable(Routes.CASH) {
@@ -195,8 +225,11 @@ private fun AcalmarNavHost(nav: NavHostController) {
         }
         composable(Routes.MORE) {
             MoreScreen(
+                onQuotes = { nav.navigate(Routes.quotes()) },
                 onServices = { nav.navigate(Routes.SERVICES) },
                 onHours = { nav.navigate(Routes.HOURS) },
+                onForms = { nav.navigate(Routes.FORMS) },
+                onBusiness = { nav.navigate(Routes.BUSINESS) },
                 onBackup = { nav.navigate(Routes.BACKUP) }
             )
         }
@@ -237,7 +270,11 @@ private fun AcalmarNavHost(nav: NavHostController) {
                 onEdit = { nav.navigate(Routes.clientForm(id)) },
                 onSchedule = { nav.navigate(Routes.apptForm(clientId = id)) },
                 onSellPackage = { nav.navigate(Routes.sellPackage(id)) },
-                onEditAppointment = { apptId -> nav.navigate(Routes.apptForm(id = apptId)) }
+                onEditAppointment = { apptId -> nav.navigate(Routes.apptForm(id = apptId)) },
+                onAnamnesis = { nav.navigate(Routes.clientAnamnesis(id)) },
+                onConsent = { nav.navigate(Routes.clientConsent(id)) },
+                onPhotos = { nav.navigate(Routes.clientPhotos(id)) },
+                onQuotes = { nav.navigate(Routes.quotes(id)) }
             )
         }
         composable(Routes.SELL_PACKAGE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
@@ -251,5 +288,69 @@ private fun AcalmarNavHost(nav: NavHostController) {
         }
         composable(Routes.HOURS) { WorkHoursScreen(onBack = back) }
         composable(Routes.BACKUP) { BackupScreen(onBack = back) }
+
+        // ---- Ficha da cliente
+        composable(Routes.CLIENT_ANAMNESIS, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            AnamnesisScreen(clientId = entry.arguments?.getLong("id") ?: 0L, onDone = back)
+        }
+        composable(Routes.CLIENT_CONSENT, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            ConsentScreen(clientId = entry.arguments?.getLong("id") ?: 0L, onBack = back)
+        }
+        composable(Routes.CLIENT_PHOTOS, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            PhotosScreen(clientId = entry.arguments?.getLong("id") ?: 0L, onBack = back)
+        }
+        composable(Routes.RECALL) {
+            RecallScreen(
+                onBack = back,
+                onOpenClient = { id -> nav.navigate(Routes.clientDetail(id)) },
+                onSchedule = { id -> nav.navigate(Routes.apptForm(clientId = id)) }
+            )
+        }
+
+        // ---- Orçamentos
+        composable(Routes.QUOTES, arguments = listOf(longArg("clientId", 0))) { entry ->
+            val clientId = entry.arguments?.getLong("clientId") ?: 0L
+            QuotesScreen(
+                clientId = clientId,
+                onBack = back,
+                onOpen = { id -> nav.navigate(Routes.quoteView(id)) },
+                onNew = { nav.navigate(Routes.quoteForm(clientId = clientId)) }
+            )
+        }
+        composable(Routes.QUOTE_FORM, arguments = listOf(longArg("id", 0), longArg("clientId", 0))) { entry ->
+            val quoteId = entry.arguments?.getLong("id") ?: 0L
+            QuoteFormScreen(
+                quoteId = quoteId,
+                initialClientId = entry.arguments?.getLong("clientId") ?: 0L,
+                onBack = back,
+                onSaved = { savedId ->
+                    if (quoteId != 0L) {
+                        // Editando a partir do orçamento aberto: volta para ele.
+                        nav.popBackStack()
+                    } else {
+                        // Orçamento novo: abre o orçamento pronto no lugar do formulário.
+                        nav.navigate(Routes.quoteView(savedId)) {
+                            popUpTo(Routes.QUOTE_FORM) { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
+        composable(Routes.QUOTE_VIEW, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            val id = entry.arguments?.getLong("id") ?: 0L
+            QuoteViewScreen(quoteId = id, onBack = back, onEdit = { nav.navigate(Routes.quoteForm(id = id)) })
+        }
+
+        // ---- Configurações
+        composable(Routes.FORMS) {
+            FormsScreen(
+                onBack = back,
+                onAnamnesis = { nav.navigate(Routes.FORMS_ANAMNESIS) },
+                onConsent = { nav.navigate(Routes.FORMS_CONSENT) }
+            )
+        }
+        composable(Routes.FORMS_ANAMNESIS) { AnamnesisTemplateScreen(onBack = back) }
+        composable(Routes.FORMS_CONSENT) { ConsentTextScreen(onBack = back) }
+        composable(Routes.BUSINESS) { BusinessScreen(onBack = back) }
     }
 }

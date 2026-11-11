@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import br.com.acalmar.agenda.data.Appointment
 import br.com.acalmar.agenda.data.ApptStatus
@@ -63,10 +66,12 @@ import br.com.acalmar.agenda.domain.formatTimeRange
 import br.com.acalmar.agenda.domain.weekdayName
 import br.com.acalmar.agenda.ui.LocalNotifier
 import br.com.acalmar.agenda.ui.LocalRepo
+import br.com.acalmar.agenda.ui.components.AlertChips
 import br.com.acalmar.agenda.ui.components.Avatar
 import br.com.acalmar.agenda.ui.components.ConfirmDialog
 import br.com.acalmar.agenda.ui.components.MoneyField
 import br.com.acalmar.agenda.ui.components.PayMethodChips
+import br.com.acalmar.agenda.ui.components.SectionLabel
 import br.com.acalmar.agenda.ui.components.Tag
 import br.com.acalmar.agenda.ui.components.openWhatsApp
 import br.com.acalmar.agenda.ui.components.statusStyle
@@ -74,9 +79,12 @@ import br.com.acalmar.agenda.ui.components.todayEpochDay
 import br.com.acalmar.agenda.ui.theme.Brand
 import kotlinx.coroutines.launch
 
-private enum class SheetDialog { NONE, PAY, NO_SHOW, UNSCHEDULE, DELETE }
+private enum class SheetDialog { NONE, CONCLUDE, NO_SHOW, UNSCHEDULE, DELETE, EVOLUTION }
 
-/** Detalhes de um atendimento, com as ações do dia a dia: concluir, faltou, desmarcar, editar. */
+/**
+ * Detalhes de um atendimento, com as ações do dia a dia: concluir, faltou, desmarcar, editar
+ * e anotar a evolução da sessão. `alerts` são os avisos de atenção da ficha de anamnese.
+ */
 @Composable
 fun AppointmentSheet(
     appt: Appointment,
@@ -84,7 +92,8 @@ fun AppointmentSheet(
     packageState: PackageState?,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
-    onOpenClient: (() -> Unit)? = null
+    onOpenClient: (() -> Unit)? = null,
+    alerts: List<String> = emptyList()
 ) {
     val repo = LocalRepo.current
     val notifier = LocalNotifier.current
@@ -136,6 +145,10 @@ fun AppointmentSheet(
                 val style = statusStyle(appt.status)
                 Tag(style.label, style.background, style.content)
             }
+            if (alerts.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                AlertChips(alerts)
+            }
 
             Spacer(Modifier.height(16.dp))
             Text(appt.serviceName, style = MaterialTheme.typography.titleMedium)
@@ -167,17 +180,27 @@ fun AppointmentSheet(
                 Text(appt.notes, style = MaterialTheme.typography.bodyMedium)
             }
 
+            // Evolução: anotação do que foi feito e de como a cliente respondeu.
+            if (appt.status == ApptStatus.CONCLUIDO || appt.evolution.isNotBlank()) {
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel("Evolução da sessão", Modifier.weight(1f))
+                    TextButton(onClick = { dialog = SheetDialog.EVOLUTION }) {
+                        Text(if (appt.evolution.isBlank()) "Anotar" else "Alterar")
+                    }
+                }
+                Text(
+                    appt.evolution.ifBlank { "Nenhuma anotação nesta sessão." },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (appt.evolution.isBlank()) Brand.BrownSoft else Brand.Brown
+                )
+            }
+
             Spacer(Modifier.height(18.dp))
 
             if (appt.status == ApptStatus.AGENDADO) {
                 Button(
-                    onClick = {
-                        if (usesPackage) {
-                            act("Atendimento concluído") { repo.conclude(appt, null) }
-                        } else {
-                            dialog = SheetDialog.PAY
-                        }
-                    },
+                    onClick = { dialog = SheetDialog.CONCLUDE },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -245,15 +268,31 @@ fun AppointmentSheet(
     when (dialog) {
         SheetDialog.NONE -> Unit
 
-        SheetDialog.PAY -> PaymentDialog(
-            title = "Concluir atendimento",
+        SheetDialog.CONCLUDE -> ConcludeDialog(
+            usesPackage = usesPackage,
             suggestedCents = appt.priceCents,
+            initialEvolution = appt.evolution,
             onDismiss = { dialog = SheetDialog.NONE },
-            onConfirm = { amount, method ->
+            onConfirm = { amount, method, evolution ->
                 dialog = SheetDialog.NONE
                 val payment = if (amount > 0) PaymentInput(amount, method, todayEpochDay()) else null
-                act(if (payment != null) "Atendimento concluído e pagamento lançado no caixa" else "Atendimento concluído · pagamento pendente") {
-                    repo.conclude(appt, payment)
+                val message = when {
+                    usesPackage -> "Atendimento concluído"
+                    payment != null -> "Atendimento concluído e pagamento lançado no caixa"
+                    else -> "Atendimento concluído · pagamento pendente"
+                }
+                act(message) { repo.conclude(appt, payment, evolution) }
+            }
+        )
+
+        SheetDialog.EVOLUTION -> EvolutionDialog(
+            initial = appt.evolution,
+            onDismiss = { dialog = SheetDialog.NONE },
+            onSave = { text ->
+                dialog = SheetDialog.NONE
+                scope.launch {
+                    repo.setEvolution(appt.id, text)
+                    notifier.show("Evolução anotada")
                 }
             }
         )
@@ -393,6 +432,93 @@ fun PaymentDialog(
                 Text(confirmLabel, fontWeight = FontWeight.SemiBold)
             }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** Concluir atendimento: pagamento (quando não é sessão de pacote) e anotação de evolução. */
+@Composable
+private fun ConcludeDialog(
+    usesPackage: Boolean,
+    suggestedCents: Long,
+    initialEvolution: String,
+    onDismiss: () -> Unit,
+    onConfirm: (amountCents: Long, method: PayMethod, evolution: String) -> Unit
+) {
+    var receiveNow by remember { mutableStateOf(true) }
+    var amount by remember { mutableLongStateOf(suggestedCents) }
+    var method by remember { mutableStateOf(PayMethod.PIX) }
+    var evolution by remember { mutableStateOf(initialEvolution) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Concluir atendimento") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (usesPackage) {
+                    Text(
+                        "Sessão do pacote: nada a receber agora.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Brand.BrownSoft
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Recebi o pagamento agora", modifier = Modifier.weight(1f))
+                        Switch(checked = receiveNow, onCheckedChange = { receiveNow = it })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (receiveNow) {
+                        MoneyField(cents = amount, onChange = { amount = it }, label = "Valor recebido", modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(12.dp))
+                        PayMethodChips(selected = method, onSelect = { method = it })
+                    } else {
+                        Text(
+                            "O valor fica em \"A receber\" no Caixa até o pagamento.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Brand.BrownSoft
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = evolution,
+                    onValueChange = { evolution = it },
+                    label = { Text("Evolução da sessão (opcional)") },
+                    placeholder = { Text("O que foi feito e como a cliente respondeu") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    minLines = 2,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(if (!usesPackage && receiveNow) amount else 0L, method, evolution) }) {
+                Text("Concluir", fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** Anotar ou alterar a evolução de uma sessão. */
+@Composable
+fun EvolutionDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Evolução da sessão") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("O que foi feito, regiões trabalhadas, como a cliente respondeu, orientações") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                minLines = 4,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Salvar", fontWeight = FontWeight.SemiBold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }

@@ -1,5 +1,6 @@
 package br.com.acalmar.agenda.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -25,6 +26,20 @@ enum class PayMethod(val label: String) {
 }
 
 @Serializable
+enum class PhotoKind(val label: String) {
+    ANTES("Antes"),
+    DEPOIS("Depois"),
+    OUTRA("Outra")
+}
+
+@Serializable
+enum class QuoteStatus(val label: String) {
+    ABERTO("Em aberto"),
+    APROVADO("Aprovado"),
+    RECUSADO("Recusado")
+}
+
+@Serializable
 @Entity(tableName = "clients")
 data class Client(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -34,7 +49,11 @@ data class Client(
     val birthday: String = "",
     val howFound: String = "",
     val notes: String = "",
-    val createdAt: Long = 0
+    val createdAt: Long = 0,
+    /** "Hora de chamar de volta": a cliente fica fora da lista até este dia (lembrar depois). */
+    val recallSnoozeUntil: Long? = null,
+    /** "Hora de chamar de volta": dispensada para o último atendimento, feito nesta data. */
+    val recallDismissedFor: Long? = null
 )
 
 @Serializable
@@ -45,7 +64,9 @@ data class Service(
     val durationMin: Int = 60,
     val priceCents: Long = 0,
     val active: Boolean = true,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    /** Tempo de retorno: depois de quantos dias chamar a cliente de volta (0 = não chamar). */
+    @ColumnInfo(defaultValue = "30") val returnDays: Int = 30
 )
 
 /** Pacote que um serviço oferece (ex.: 5 sessões por R$ 320). */
@@ -153,7 +174,9 @@ data class Appointment(
     val notes: String = "",
     /** Agendamentos criados juntos como "sessões que se repetem" compartilham este código. */
     val seriesId: String? = null,
-    val createdAt: Long = 0
+    val createdAt: Long = 0,
+    /** Evolução: o que foi feito e como a cliente respondeu nesta sessão. */
+    @ColumnInfo(defaultValue = "") val evolution: String = ""
 )
 
 val Appointment.endMin: Int get() = startMin + durationMin
@@ -215,4 +238,103 @@ data class CashEntry(
 data class Setting(
     @PrimaryKey val name: String,
     val value: String
+)
+
+/** Ficha de anamnese de uma cliente: as respostas ficam em JSON (ver Forms.kt). */
+@Serializable
+@Entity(
+    tableName = "anamneses",
+    foreignKeys = [
+        ForeignKey(
+            entity = Client::class,
+            parentColumns = ["id"],
+            childColumns = ["clientId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class Anamnesis(
+    @PrimaryKey val clientId: Long,
+    val answersJson: String = "",
+    val updatedAt: Long = 0
+)
+
+/** Termo de consentimento assinado por uma cliente. */
+@Serializable
+@Entity(
+    tableName = "consents",
+    foreignKeys = [
+        ForeignKey(
+            entity = Client::class,
+            parentColumns = ["id"],
+            childColumns = ["clientId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("clientId")]
+)
+data class Consent(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val clientId: Long,
+    /** Texto do termo como estava no momento da assinatura. */
+    val text: String,
+    /** A cliente autoriza o uso das fotos de antes e depois na divulgação? */
+    val imageUse: Boolean = false,
+    val signedOn: Long,
+    val signerName: String = "",
+    /** Traços da assinatura feita na tela (ver domain/Signature.kt). */
+    val signature: String = "",
+    val createdAt: Long = 0
+)
+
+/** Foto de uma cliente (antes, depois ou outra). O arquivo fica guardado dentro do app. */
+@Serializable
+@Entity(
+    tableName = "photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = Client::class,
+            parentColumns = ["id"],
+            childColumns = ["clientId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("clientId")]
+)
+data class Photo(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val clientId: Long,
+    val fileName: String,
+    val takenOn: Long,
+    val kind: PhotoKind = PhotoKind.OUTRA,
+    val note: String = "",
+    val createdAt: Long = 0
+)
+
+/** Orçamento. Os itens ficam em JSON (ver Forms.kt). */
+@Serializable
+@Entity(
+    tableName = "quotes",
+    foreignKeys = [
+        ForeignKey(
+            entity = Client::class,
+            parentColumns = ["id"],
+            childColumns = ["clientId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index("clientId")]
+)
+data class Quote(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val clientId: Long? = null,
+    /** Nome de quem pediu o orçamento (pode não ser cliente cadastrada). */
+    val clientName: String = "",
+    val createdOn: Long,
+    val validUntil: Long? = null,
+    val itemsJson: String = "[]",
+    val discountCents: Long = 0,
+    val notes: String = "",
+    val status: QuoteStatus = QuoteStatus.ABERTO,
+    val createdAt: Long = 0
 )

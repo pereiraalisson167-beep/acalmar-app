@@ -17,8 +17,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Cake
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import br.com.acalmar.agenda.data.Client
 import br.com.acalmar.agenda.domain.PackageState
+import br.com.acalmar.agenda.domain.RecallItem
 import br.com.acalmar.agenda.domain.digitsOnly
 import br.com.acalmar.agenda.domain.firstName
 import br.com.acalmar.agenda.domain.formatPhone
@@ -64,13 +67,14 @@ fun birthdayDayMonth(birthday: String): Pair<Int, Int>? {
 }
 
 @Composable
-fun ClientsScreen(onOpenClient: (Long) -> Unit, onNewClient: () -> Unit) {
+fun ClientsScreen(onOpenClient: (Long) -> Unit, onNewClient: () -> Unit, onOpenRecall: () -> Unit) {
     val repo = LocalRepo.current
     val clients by repo.clients.collectAsStateWithLifecycle(initialValue = emptyList())
     val packageStates by repo.packageStates.collectAsStateWithLifecycle(initialValue = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     val today = LocalDate.now()
     val todayDay = today.toEpochDay()
+    val recalls by remember(todayDay) { repo.recalls(todayDay) }.collectAsStateWithLifecycle(initialValue = emptyList())
 
     val filtered = remember(clients, query) {
         val key = sortKey(query)
@@ -126,6 +130,9 @@ fun ClientsScreen(onOpenClient: (Long) -> Unit, onNewClient: () -> Unit) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (recalls.isNotEmpty() && query.isBlank()) {
+                    item(key = "recall") { RecallCard(recalls, onClick = onOpenRecall) }
+                }
                 if (birthdays.isNotEmpty() && query.isBlank()) {
                     item(key = "birthdays") {
                         BirthdaysCard(
@@ -169,6 +176,31 @@ fun ClientsScreen(onOpenClient: (Long) -> Unit, onNewClient: () -> Unit) {
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
         )
+    }
+}
+
+/** Atalho para a lista "Hora de chamar de volta". */
+@Composable
+private fun RecallCard(recalls: List<RecallItem>, onClick: () -> Unit) {
+    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = onClick, container = Brand.BeigeSoft, border = Brand.Gold) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.NotificationsActive, contentDescription = null, tint = Brand.Bronze, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Hora de chamar de volta", style = MaterialTheme.typography.titleSmall, color = Brand.BronzeDark)
+                val names = recalls.take(2).joinToString(", ") { firstName(it.client.name) }
+                val more = recalls.size - 2
+                Text(
+                    if (more > 0) "$names e mais $more" else names,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Brand.BrownSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Tag(recalls.size.toString(), Brand.Bronze, Color.White)
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Brand.Gold)
+        }
     }
 }
 

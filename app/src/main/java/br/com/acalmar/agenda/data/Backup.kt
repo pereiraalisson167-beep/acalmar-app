@@ -2,7 +2,11 @@ package br.com.acalmar.agenda.data
 
 import kotlinx.serialization.Serializable
 
-/** Conteúdo do arquivo de backup: todos os dados do app em um único arquivo de texto (JSON). */
+/**
+ * Dados do backup. O arquivo de backup é um .zip com este conteúdo em "dados.json" e as fotos
+ * das clientes na pasta "fotos/". A primeira versão do app gravava só o JSON, sem zip; esse
+ * formato antigo continua sendo aceito na restauração.
+ */
 @Serializable
 data class BackupFile(
     /** Marca obrigatória: impede que um arquivo qualquer seja aceito como backup. */
@@ -16,12 +20,19 @@ data class BackupFile(
     val appointments: List<Appointment> = emptyList(),
     val blocks: List<TimeBlock> = emptyList(),
     val cash: List<CashEntry> = emptyList(),
-    val settings: List<Setting> = emptyList()
+    val settings: List<Setting> = emptyList(),
+    val anamneses: List<Anamnesis> = emptyList(),
+    val consents: List<Consent> = emptyList(),
+    val photos: List<Photo> = emptyList(),
+    val quotes: List<Quote> = emptyList()
 ) {
     fun toJson(): String = AppJson.encodeToString(serializer(), this)
 
     companion object {
         const val APP_TAG = "acalmar"
+        const val CURRENT_SCHEMA = 2
+        const val DATA_ENTRY = "dados.json"
+        const val PHOTO_DIR = "fotos/"
 
         /** Lê um arquivo de backup; lança erro se o arquivo não for um backup válido. */
         fun parse(text: String): BackupFile {
@@ -36,4 +47,4 @@ data class BackupFile(
     }
 }
 
-data class BackupSummary(val clients: Int, val appointments: Int, val cashEntries: Int)
+data class BackupSummary(val clients: Int, val appointments: Int, val cashEntries: Int, val photos: Int = 0)

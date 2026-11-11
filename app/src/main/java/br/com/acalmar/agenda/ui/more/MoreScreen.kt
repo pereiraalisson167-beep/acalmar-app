@@ -17,8 +17,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,7 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import br.com.acalmar.agenda.BuildConfig
 import br.com.acalmar.agenda.R
+import br.com.acalmar.agenda.data.BusinessInfo
 import br.com.acalmar.agenda.data.Keys
+import br.com.acalmar.agenda.data.QuoteStatus
+import br.com.acalmar.agenda.domain.formatPhone
 import br.com.acalmar.agenda.ui.LocalRepo
 import br.com.acalmar.agenda.ui.components.SoftCard
 import br.com.acalmar.agenda.ui.theme.Brand
@@ -54,10 +60,20 @@ fun backupStatus(lastBackupAt: String?): Pair<String, Boolean> {
 }
 
 @Composable
-fun MoreScreen(onServices: () -> Unit, onHours: () -> Unit, onBackup: () -> Unit) {
+fun MoreScreen(
+    onQuotes: () -> Unit,
+    onServices: () -> Unit,
+    onHours: () -> Unit,
+    onForms: () -> Unit,
+    onBusiness: () -> Unit,
+    onBackup: () -> Unit
+) {
     val repo = LocalRepo.current
     val settings by repo.settings.collectAsStateWithLifecycle(initialValue = emptyMap())
     val services by repo.services.collectAsStateWithLifecycle(initialValue = emptyList())
+    val quotes by repo.quotes.collectAsStateWithLifecycle(initialValue = emptyList())
+    val business by repo.business.collectAsStateWithLifecycle(initialValue = BusinessInfo())
+    val openQuotes = quotes.count { it.status == QuoteStatus.ABERTO }
     val (backupText, backupLate) = backupStatus(settings[Keys.LAST_BACKUP])
 
     Column(
@@ -79,9 +95,19 @@ fun MoreScreen(onServices: () -> Unit, onHours: () -> Unit, onBackup: () -> Unit
         Spacer(Modifier.height(4.dp))
 
         MoreItem(
+            icon = Icons.Outlined.RequestQuote,
+            title = "Orçamentos",
+            subtitle = when (openQuotes) {
+                0 -> "Monte o orçamento e envie pelo WhatsApp"
+                1 -> "1 orçamento em aberto"
+                else -> "$openQuotes orçamentos em aberto"
+            },
+            onClick = onQuotes
+        )
+        MoreItem(
             icon = Icons.Outlined.Spa,
             title = "Serviços e pacotes",
-            subtitle = "${services.count { it.active }} serviços ativos · preços, duração e pacotes",
+            subtitle = "${services.count { it.active }} serviços ativos · preços, duração, pacotes e retorno",
             onClick = onServices
         )
         MoreItem(
@@ -89,6 +115,19 @@ fun MoreScreen(onServices: () -> Unit, onHours: () -> Unit, onBackup: () -> Unit
             title = "Horário de atendimento",
             subtitle = "Dias de trabalho, almoço e intervalo da agenda",
             onClick = onHours
+        )
+        MoreItem(
+            icon = Icons.Outlined.Description,
+            title = "Fichas e termo",
+            subtitle = "Perguntas da anamnese e texto do termo de consentimento",
+            onClick = onForms
+        )
+        MoreItem(
+            icon = Icons.Outlined.Storefront,
+            title = "Dados do negócio",
+            subtitle = listOf(business.name, formatPhone(business.phone)).filter { it.isNotBlank() }.joinToString(" · ")
+                .ifBlank { "Nome e contato que aparecem no orçamento e no termo" },
+            onClick = onBusiness
         )
         MoreItem(
             icon = Icons.Outlined.CloudUpload,

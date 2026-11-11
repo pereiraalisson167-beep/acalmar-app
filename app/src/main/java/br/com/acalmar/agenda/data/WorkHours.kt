@@ -16,6 +16,9 @@ object Keys {
     const val WORK_HOURS = "work_hours"
     const val HOURS_CONFIGURED = "hours_configured"
     const val LAST_BACKUP = "last_backup_at"
+    const val BUSINESS = "business"
+    const val ANAMNESIS_TEMPLATE = "anamnesis_template"
+    const val CONSENT_TEXT = "consent_text"
 }
 
 @Serializable

@@ -425,3 +425,16 @@ fun LabeledValue(label: String, value: String, modifier: Modifier = Modifier, va
         Text(value, style = MaterialTheme.typography.bodyLarge, color = valueColor, fontWeight = FontWeight.SemiBold)
     }
 }
+
+/** Avisos de atenção da ficha de anamnese (ex.: "Alergia", "Gestante"). */
+@Composable
+fun AlertChips(alerts: List<String>, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Tag("Atenção", Brand.Terracotta, Color.White)
+        alerts.forEach { alert -> Tag(alert, Brand.TerracottaSoft, Brand.Terracotta) }
+    }
+}

@@ -53,7 +53,7 @@ jobs:
       - name: Preparar a versão anterior e assinar as duas para o teste
         run: |
           set -e
-          curl -fsSL -o old-release.apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/v1.0.0-5/acalmar.apk"
+          curl -fsSL -o old-release.apk "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/acalmar.apk"
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
           keytool -genkeypair -keystore ui.keystore -storetype PKCS12 -storepass android -keypass android \
             -alias ui -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Teste de telas"

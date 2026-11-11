@@ -105,6 +105,7 @@ fun AgendaScreen(
     val clients by repo.clients.collectAsStateWithLifecycle(initialValue = emptyList())
     val hours by repo.workHours.collectAsStateWithLifecycle(initialValue = WorkHours())
     val packageStates by repo.packageStates.collectAsStateWithLifecycle(initialValue = emptyList())
+    val alertsByClient by repo.alertsByClient.collectAsStateWithLifecycle(initialValue = emptyMap())
 
     val clientById = remember(clients) { clients.associateBy { it.id } }
     val dayAppts = weekAppts.filter { it.date == selectedDay }
@@ -215,6 +216,7 @@ fun AgendaScreen(
                         is DayItem.Appt -> AppointmentCard(
                             appt = item.appt,
                             client = clientById[item.appt.clientId],
+                            hasAlerts = alertsByClient[item.appt.clientId].orEmpty().isNotEmpty(),
                             onClick = { sheetApptId = item.appt.id }
                         )
 
@@ -292,7 +294,8 @@ fun AgendaScreen(
             onOpenClient = {
                 sheetApptId = null
                 onOpenClient(sheetAppt.clientId)
-            }
+            },
+            alerts = alertsByClient[sheetAppt.clientId].orEmpty()
         )
     }
 }
@@ -352,7 +355,7 @@ private fun DayCell(
 }
 
 @Composable
-private fun AppointmentCard(appt: Appointment, client: Client?, onClick: () -> Unit) {
+private fun AppointmentCard(appt: Appointment, client: Client?, hasAlerts: Boolean, onClick: () -> Unit) {
     val style = statusStyle(appt.status)
     val faded = appt.status == ApptStatus.FALTOU
     SoftCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
@@ -391,11 +394,12 @@ private fun AppointmentCard(appt: Appointment, client: Client?, onClick: () -> U
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (appt.status != ApptStatus.AGENDADO || appt.clientPackageId != null) {
+                if (appt.status != ApptStatus.AGENDADO || appt.clientPackageId != null || hasAlerts) {
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (appt.status != ApptStatus.AGENDADO) Tag(style.label, style.background, style.content)
                         if (appt.clientPackageId != null) Tag("Pacote", Brand.Beige, Brand.BronzeDark)
+                        if (hasAlerts) Tag("Atenção", Brand.TerracottaSoft, Brand.Terracotta)
                     }
                 }
             }

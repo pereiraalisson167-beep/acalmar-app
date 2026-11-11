@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pastas do app que podem ser compartilhadas com outros apps (WhatsApp, câmera). -->
+<paths>
+    <cache-path name="compartilhar" path="share/" />
+    <cache-path name="camera" path="camera/" />
+    <files-path name="fotos" path="photos/" />
+</paths>

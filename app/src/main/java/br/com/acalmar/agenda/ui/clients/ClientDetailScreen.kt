@@ -17,8 +17,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Gesture
+import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.Sms
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -40,11 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import br.com.acalmar.agenda.data.Appointment
+import br.com.acalmar.agenda.data.AnamnesisModel
 import br.com.acalmar.agenda.data.ApptStatus
+import br.com.acalmar.agenda.data.QuoteStatus
 import br.com.acalmar.agenda.domain.PackageState
 import br.com.acalmar.agenda.domain.Receivable
 import br.com.acalmar.agenda.domain.epochToDate
@@ -58,6 +66,7 @@ import br.com.acalmar.agenda.ui.LocalRepo
 import br.com.acalmar.agenda.ui.agenda.AppointmentSheet
 import br.com.acalmar.agenda.ui.agenda.PaymentDialog
 import br.com.acalmar.agenda.ui.components.AcalmarTopBar
+import br.com.acalmar.agenda.ui.components.AlertChips
 import br.com.acalmar.agenda.ui.components.Avatar
 import br.com.acalmar.agenda.ui.components.ConfirmDialog
 import br.com.acalmar.agenda.ui.components.SectionLabel
@@ -68,7 +77,9 @@ import br.com.acalmar.agenda.ui.components.openWhatsApp
 import br.com.acalmar.agenda.ui.components.statusStyle
 import br.com.acalmar.agenda.ui.theme.Brand
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
 fun ClientDetailScreen(
@@ -77,7 +88,11 @@ fun ClientDetailScreen(
     onEdit: () -> Unit,
     onSchedule: () -> Unit,
     onSellPackage: () -> Unit,
-    onEditAppointment: (Long) -> Unit
+    onEditAppointment: (Long) -> Unit,
+    onAnamnesis: () -> Unit,
+    onConsent: () -> Unit,
+    onPhotos: () -> Unit,
+    onQuotes: () -> Unit
 ) {
     val repo = LocalRepo.current
     val notifier = LocalNotifier.current
@@ -90,6 +105,11 @@ fun ClientDetailScreen(
     val allAppts by repo.appointments.collectAsStateWithLifecycle(initialValue = emptyList())
     val allStates by repo.packageStates.collectAsStateWithLifecycle(initialValue = emptyList())
     val allReceivables by repo.receivables.collectAsStateWithLifecycle(initialValue = emptyList())
+    val anamnesis by remember(clientId) { repo.anamnesis(clientId) }.collectAsStateWithLifecycle(initialValue = null)
+    val template by repo.anamnesisTemplate.collectAsStateWithLifecycle(initialValue = emptyList())
+    val consents by remember(clientId) { repo.consents(clientId) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val photos by remember(clientId) { repo.photos(clientId) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allQuotes by repo.quotes.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePackage by remember { mutableStateOf<PackageState?>(null) }
@@ -109,6 +129,9 @@ fun ClientDetailScreen(
             .sortedWith(compareByDescending<PackageState> { it.isActive(todayDay) }.thenByDescending { it.pkg.purchasedOn })
     }
     val receivables = remember(allReceivables, clientId) { allReceivables.filter { it.clientId == clientId } }
+    val answers = remember(anamnesis) { AnamnesisModel.parseAnswers(anamnesis?.answersJson) }
+    val alerts = remember(template, answers) { AnamnesisModel.alerts(template, answers) }
+    val quotes = remember(allQuotes, clientId) { allQuotes.filter { it.clientId == clientId } }
     val current = client
 
     Scaffold(
@@ -149,6 +172,10 @@ fun ClientDetailScreen(
                             }
                         }
                     }
+                    if (alerts.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        AlertChips(alerts)
+                    }
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
@@ -183,6 +210,60 @@ fun ClientDetailScreen(
                                 Icon(Icons.Outlined.Phone, contentDescription = "Ligar", modifier = Modifier.size(18.dp))
                             }
                         }
+                    }
+                }
+            }
+
+            // ---- Ficha: anamnese, termo, fotos e orçamentos
+            item(key = "ficha") {
+                val lastConsent = consents.firstOrNull()
+                val openQuotes = quotes.count { it.status == QuoteStatus.ABERTO }
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column {
+                        RecordRow(
+                            icon = Icons.Outlined.HealthAndSafety,
+                            title = "Ficha de anamnese",
+                            status = anamnesis?.let { a ->
+                                val count = AnamnesisModel.answeredCount(template, answers)
+                                "Preenchida em ${formatDateShort(dateOfMillis(a.updatedAt))} · $count respostas"
+                            } ?: "Ainda não preenchida",
+                            pending = anamnesis == null,
+                            onClick = onAnamnesis
+                        )
+                        HorizontalDivider(color = Brand.Line)
+                        RecordRow(
+                            icon = Icons.Outlined.Gesture,
+                            title = "Termo de consentimento",
+                            status = lastConsent?.let { c ->
+                                "Assinado em ${formatDateShort(epochToDate(c.signedOn))} · " +
+                                    if (c.imageUse) "autoriza fotos" else "não autoriza fotos"
+                            } ?: "Ainda não assinado",
+                            pending = lastConsent == null,
+                            onClick = onConsent
+                        )
+                        HorizontalDivider(color = Brand.Line)
+                        RecordRow(
+                            icon = Icons.Outlined.PhotoLibrary,
+                            title = "Fotos de antes e depois",
+                            status = when (photos.size) {
+                                0 -> "Nenhuma foto"
+                                1 -> "1 foto"
+                                else -> "${photos.size} fotos"
+                            },
+                            onClick = onPhotos
+                        )
+                        HorizontalDivider(color = Brand.Line)
+                        RecordRow(
+                            icon = Icons.Outlined.RequestQuote,
+                            title = "Orçamentos",
+                            status = when {
+                                quotes.isEmpty() -> "Nenhum orçamento"
+                                openQuotes > 0 -> "${quotes.size} no total · $openQuotes em aberto"
+                                quotes.size == 1 -> "1 orçamento"
+                                else -> "${quotes.size} orçamentos"
+                            },
+                            onClick = onQuotes
+                        )
                     }
                 }
             }
@@ -248,7 +329,7 @@ fun ClientDetailScreen(
                 HistoryRow(a, today, onClick = { sheetApptId = a.id })
             }
             if (history.isNotEmpty()) {
-                item(key = "hist-title") { SectionLabel("Histórico", Modifier.padding(top = 8.dp)) }
+                item(key = "hist-title") { SectionLabel("Histórico e evolução", Modifier.padding(top = 8.dp)) }
                 items(history.take(60), key = { "h${it.id}" }) { a ->
                     HistoryRow(a, today, onClick = { sheetApptId = a.id })
                 }
@@ -318,7 +399,8 @@ fun ClientDetailScreen(
             onEdit = {
                 sheetApptId = null
                 onEditAppointment(sheetAppt.id)
-            }
+            },
+            alerts = alerts
         )
     }
 }
@@ -400,7 +482,7 @@ private fun HistoryRow(appt: Appointment, today: LocalDate, onClick: () -> Unit)
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
-        Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(top = 8.dp, bottom = if (appt.evolution.isBlank()) 8.dp else 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(appt.serviceName, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -412,6 +494,46 @@ private fun HistoryRow(appt: Appointment, today: LocalDate, onClick: () -> Unit)
             }
             Tag(style.label, style.background, style.content)
         }
+        if (appt.evolution.isNotBlank()) {
+            Text(
+                appt.evolution,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Brand.Brown,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
         HorizontalDivider(color = Brand.Line)
     }
 }
+
+/** Linha do quadro da ficha: ícone, título, situação e seta. */
+@Composable
+private fun RecordRow(icon: ImageVector, title: String, status: String, onClick: () -> Unit, pending: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = Brand.Bronze, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                status,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (pending) Brand.Terracotta else Brand.BrownSoft,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Brand.Gold)
+    }
+}
+
+/** Data (dia) de um instante gravado em milissegundos, no fuso do celular. */
+private fun dateOfMillis(millis: Long): LocalDate =
+    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()

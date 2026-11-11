@@ -94,7 +94,8 @@ fun ServicesScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                                 if (!service.active) Tag("Inativo", Brand.GraySoft, Brand.Gray)
                             }
                             Text(
-                                "${formatDuration(service.durationMin)} · ${formatMoney(service.priceCents)}",
+                                "${formatDuration(service.durationMin)} · ${formatMoney(service.priceCents)}" +
+                                    if (service.returnDays > 0) " · retorno em ${service.returnDays} dias" else "",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Brand.BrownSoft
                             )
@@ -137,6 +138,7 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
     var duration by remember { mutableStateOf<Int?>(60) }
     var priceCents by remember { mutableLongStateOf(0L) }
     var active by remember { mutableStateOf(true) }
+    var returnDays by remember { mutableStateOf<Int?>(30) }
     val drafts = remember { mutableStateListOf<OfferDraft>() }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -148,6 +150,7 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
                 duration = s.durationMin
                 priceCents = s.priceCents
                 active = s.active
+                returnDays = s.returnDays.takeIf { it > 0 }
             }
             drafts.clear()
             drafts.addAll(repo.getOffersFor(serviceId).map { OfferDraft(it.sessions, it.priceCents, it.validityDays) })
@@ -185,7 +188,8 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
                                 name = name.trim(),
                                 durationMin = duration ?: 60,
                                 priceCents = priceCents,
-                                active = active
+                                active = active,
+                                returnDays = returnDays ?: 0
                             ),
                             drafts.map {
                                 PackageOffer(
@@ -246,6 +250,19 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
                 }
                 Switch(checked = active, onCheckedChange = { active = it })
             }
+
+            IntField(
+                value = returnDays,
+                onChange = { returnDays = it },
+                label = "Chamar a cliente de volta após",
+                suffix = "dias",
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                "Depois desse tempo sem novo horário, a cliente aparece em \"Hora de chamar de volta\". Em branco = não avisar.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Brand.BrownSoft
+            )
 
             SectionLabel("Pacotes deste serviço", Modifier.padding(top = 4.dp))
             if (drafts.isEmpty()) {

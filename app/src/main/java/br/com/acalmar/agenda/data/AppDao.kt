@@ -35,6 +35,12 @@ interface AppDao {
     @Query("DELETE FROM clients WHERE id = :id")
     suspend fun deleteClient(id: Long)
 
+    @Query("UPDATE clients SET recallSnoozeUntil = :until WHERE id = :id")
+    suspend fun setRecallSnooze(id: Long, until: Long?)
+
+    @Query("UPDATE clients SET recallDismissedFor = :date WHERE id = :id")
+    suspend fun setRecallDismissed(id: Long, date: Long?)
+
     // ---- Serviços
     @Query("SELECT * FROM services ORDER BY sortOrder, id")
     fun observeServices(): Flow<List<Service>>
@@ -129,6 +135,9 @@ interface AppDao {
     @Query("DELETE FROM appointments WHERE id = :id")
     suspend fun deleteAppointment(id: Long)
 
+    @Query("UPDATE appointments SET evolution = :text WHERE id = :id")
+    suspend fun setEvolution(id: Long, text: String)
+
     // ---- Bloqueios de horário
     @Query("SELECT * FROM blocks WHERE date BETWEEN :fromDay AND :toDay ORDER BY date, startMin, id")
     fun observeBlocksBetween(fromDay: Long, toDay: Long): Flow<List<TimeBlock>>
@@ -198,6 +207,94 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putSettings(list: List<Setting>)
 
+    @Query("DELETE FROM settings WHERE name = :name")
+    suspend fun deleteSetting(name: String)
+
+    // ---- Fichas de anamnese
+    @Query("SELECT * FROM anamneses WHERE clientId = :clientId")
+    fun observeAnamnesis(clientId: Long): Flow<Anamnesis?>
+
+    @Query("SELECT * FROM anamneses")
+    fun observeAnamneses(): Flow<List<Anamnesis>>
+
+    @Query("SELECT * FROM anamneses WHERE clientId = :clientId")
+    suspend fun getAnamnesis(clientId: Long): Anamnesis?
+
+    @Query("SELECT * FROM anamneses")
+    suspend fun getAnamneses(): List<Anamnesis>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putAnamnesis(anamnesis: Anamnesis)
+
+    @Insert
+    suspend fun insertAnamneses(list: List<Anamnesis>)
+
+    @Query("DELETE FROM anamneses WHERE clientId = :clientId")
+    suspend fun deleteAnamnesis(clientId: Long)
+
+    // ---- Termos de consentimento assinados
+    @Query("SELECT * FROM consents WHERE clientId = :clientId ORDER BY signedOn DESC, id DESC")
+    fun observeConsents(clientId: Long): Flow<List<Consent>>
+
+    @Query("SELECT * FROM consents")
+    suspend fun getConsents(): List<Consent>
+
+    @Insert
+    suspend fun insertConsent(consent: Consent): Long
+
+    @Insert
+    suspend fun insertConsents(list: List<Consent>)
+
+    @Query("DELETE FROM consents WHERE id = :id")
+    suspend fun deleteConsent(id: Long)
+
+    // ---- Fotos
+    @Query("SELECT * FROM photos WHERE clientId = :clientId ORDER BY takenOn DESC, id DESC")
+    fun observePhotos(clientId: Long): Flow<List<Photo>>
+
+    @Query("SELECT * FROM photos WHERE clientId = :clientId")
+    suspend fun getPhotosOf(clientId: Long): List<Photo>
+
+    @Query("SELECT * FROM photos")
+    suspend fun getPhotos(): List<Photo>
+
+    @Insert
+    suspend fun insertPhoto(photo: Photo): Long
+
+    @Insert
+    suspend fun insertPhotos(list: List<Photo>)
+
+    @Update
+    suspend fun updatePhoto(photo: Photo)
+
+    @Query("DELETE FROM photos WHERE id = :id")
+    suspend fun deletePhoto(id: Long)
+
+    // ---- Orçamentos
+    @Query("SELECT * FROM quotes ORDER BY createdOn DESC, id DESC")
+    fun observeQuotes(): Flow<List<Quote>>
+
+    @Query("SELECT * FROM quotes WHERE id = :id")
+    fun observeQuote(id: Long): Flow<Quote?>
+
+    @Query("SELECT * FROM quotes WHERE id = :id")
+    suspend fun getQuote(id: Long): Quote?
+
+    @Query("SELECT * FROM quotes")
+    suspend fun getQuotes(): List<Quote>
+
+    @Insert
+    suspend fun insertQuote(quote: Quote): Long
+
+    @Insert
+    suspend fun insertQuotes(list: List<Quote>)
+
+    @Update
+    suspend fun updateQuote(quote: Quote)
+
+    @Query("DELETE FROM quotes WHERE id = :id")
+    suspend fun deleteQuote(id: Long)
+
     // ---- Limpeza total (usada ao restaurar um backup)
     @Query("DELETE FROM cash_entries")
     suspend fun clearCash()
@@ -222,4 +319,16 @@ interface AppDao {
 
     @Query("DELETE FROM settings")
     suspend fun clearSettings()
+
+    @Query("DELETE FROM anamneses")
+    suspend fun clearAnamneses()
+
+    @Query("DELETE FROM consents")
+    suspend fun clearConsents()
+
+    @Query("DELETE FROM photos")
+    suspend fun clearPhotos()
+
+    @Query("DELETE FROM quotes")
+    suspend fun clearQuotes()
 }
