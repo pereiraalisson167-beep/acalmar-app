@@ -130,8 +130,14 @@ fun SellPackageScreen(clientId: Long, packageId: Long = 0L, onDone: () -> Unit) 
     val cashPaid = state?.paidCents ?: 0L
     val serviceOffers = offers.filter { it.serviceId == serviceId }
     val total = sessions ?: 0
-    val minSessions = usedInApp + (usedBefore ?: 0)
-    val sessionsOk = total > 0 && (usedBefore ?: 0) < total && total >= minSessions
+    val scheduledInApp = state?.scheduled ?: 0
+    // Ao corrigir, o total não pode ficar menor que as sessões já feitas e as já agendadas.
+    val minSessions = usedInApp + (usedBefore ?: 0) + scheduledInApp
+    val sessionsOk = if (editing) {
+        total > 0 && total >= minSessions
+    } else {
+        total > 0 && (usedBefore ?: 0) < total
+    }
     val canSave = loaded && serviceName.isNotBlank() && sessionsOk
     val effectivePayDay = payDay ?: defaultPaymentDay(purchasedOn, today)
 
@@ -245,7 +251,13 @@ fun SellPackageScreen(clientId: Long, packageId: Long = 0L, onDone: () -> Unit) 
             }
             if (editing && total in 1 until minSessions) {
                 Text(
-                    "Este pacote já tem $minSessions ${if (minSessions == 1) "sessão feita" else "sessões feitas"}: o total não pode ser menor.",
+                    "Este pacote já tem $minSessions " +
+                        when {
+                            minSessions == 1 && scheduledInApp > 0 -> "sessão feita ou agendada"
+                            minSessions == 1 -> "sessão feita"
+                            scheduledInApp > 0 -> "sessões feitas ou agendadas"
+                            else -> "sessões feitas"
+                        } + ": o total não pode ser menor.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Brand.Terracotta
                 )

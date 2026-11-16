@@ -27,6 +27,10 @@ class AutoBackup(context: Context, private val repo: Repository, private val sco
     private val appContext = context.applicationContext
     private val running = Mutex()
 
+    /** Última conferência sem mudanças (só na memória), para não reler tudo a cada troca de app. */
+    @Volatile
+    private var lastCheckMs = 0L
+
     /** Chamado quando o app abre ou sai da tela. Nunca lança erro. */
     fun runIfDue() {
         scope.launch { runCatching { run(force = false) }.onFailure { Log.w(TAG, "Falha no backup automático", it) } }
@@ -43,9 +47,13 @@ class AutoBackup(context: Context, private val repo: Repository, private val sco
             val now = System.currentTimeMillis()
             val last = repo.getSetting(Keys.AUTO_BACKUP_AT)?.toLongOrNull() ?: 0L
             if (!force && now - last in 0 until MIN_INTERVAL_MS) return null
+            if (!force && now - lastCheckMs in 0 until CHECK_INTERVAL_MS) return null
 
             val fingerprint = repo.dataFingerprint()
-            if (!force && fingerprint == repo.getSetting(Keys.AUTO_BACKUP_HASH)) return null
+            if (!force && fingerprint == repo.getSetting(Keys.AUTO_BACKUP_HASH)) {
+                lastCheckMs = now
+                return null
+            }
 
             val error = try {
                 withContext(Dispatchers.IO) { write(Uri.parse(folder)) }
@@ -98,6 +106,9 @@ class AutoBackup(context: Context, private val repo: Repository, private val sco
 
         /** Intervalo mínimo entre duas cópias automáticas. */
         const val MIN_INTERVAL_MS = 60L * 60 * 1000
+
+        /** Intervalo mínimo entre duas conferências que não encontraram mudança. */
+        const val CHECK_INTERVAL_MS = 15L * 60 * 1000
 
         const val SLOTS = 3
 
