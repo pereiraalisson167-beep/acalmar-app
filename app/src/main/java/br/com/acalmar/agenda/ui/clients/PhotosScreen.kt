@@ -311,9 +311,9 @@ private fun NewPhotoDialog(
     onDismiss: () -> Unit,
     onSave: (PhotoKind, Long, String) -> Unit
 ) {
-    var kind by remember { mutableStateOf(suggestedKind) }
-    var takenOn by remember { mutableLongStateOf(today) }
-    var note by remember { mutableStateOf("") }
+    var kind by rememberSaveable { mutableStateOf(suggestedKind) }
+    var takenOn by rememberSaveable { mutableLongStateOf(today) }
+    var note by rememberSaveable { mutableStateOf("") }
     var pickingDate by remember { mutableStateOf(false) }
 
     AlertDialog(

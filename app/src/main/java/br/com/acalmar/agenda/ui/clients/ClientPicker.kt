@@ -1,5 +1,6 @@
 package br.com.acalmar.agenda.ui.clients
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,10 +49,10 @@ import kotlinx.coroutines.launch
 fun ClientPickerDialog(clients: List<Client>, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
     val repo = LocalRepo.current
     val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var creating by remember { mutableStateOf(clients.isEmpty()) }
-    var newName by remember { mutableStateOf("") }
-    var newPhone by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var creating by rememberSaveable { mutableStateOf(clients.isEmpty()) }
+    var newName by rememberSaveable { mutableStateOf("") }
+    var newPhone by rememberSaveable { mutableStateOf("") }
 
     val filtered = remember(clients, query) {
         val key = sortKey(query)

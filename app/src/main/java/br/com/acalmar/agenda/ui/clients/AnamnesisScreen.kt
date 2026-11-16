@@ -1,5 +1,8 @@
 package br.com.acalmar.agenda.ui.clients
 
+import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,17 +63,26 @@ fun AnamnesisScreen(clientId: Long, onDone: () -> Unit) {
 
     val client by remember(clientId) { repo.client(clientId) }.collectAsStateWithLifecycle(initialValue = null)
     val template by repo.anamnesisTemplate.collectAsStateWithLifecycle(initialValue = emptyList())
-    val answers = remember { mutableStateMapOf<String, AnamnesisAnswer>() }
+    // As respostas em preenchimento são guardadas como texto, para não se perderem se o Android
+    // fechar o app em segundo plano no meio da ficha.
+    val answers = rememberSaveable(
+        saver = Saver<SnapshotStateMap<String, AnamnesisAnswer>, String>(
+            save = { AnamnesisModel.answersJson(it.values) },
+            restore = { text -> mutableStateMapOf<String, AnamnesisAnswer>().apply { putAll(AnamnesisModel.parseAnswers(text)) } }
+        )
+    ) { mutableStateMapOf() }
     var updatedAt by remember { mutableStateOf(0L) }
     var loaded by remember { mutableStateOf(false) }
+    var filled by rememberSaveable { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
 
     LaunchedEffect(clientId) {
         val saved = repo.getAnamnesis(clientId)
         if (saved != null) {
-            answers.putAll(AnamnesisModel.parseAnswers(saved.answersJson))
+            if (!filled) answers.putAll(AnamnesisModel.parseAnswers(saved.answersJson))
             updatedAt = saved.updatedAt
         }
+        filled = true
         loaded = true
     }
 

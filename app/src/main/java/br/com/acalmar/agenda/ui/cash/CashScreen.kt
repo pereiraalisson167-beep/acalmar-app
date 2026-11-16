@@ -1,5 +1,13 @@
 package br.com.acalmar.agenda.ui.cash
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import br.com.acalmar.agenda.ui.components.ConfirmDialog
+import br.com.acalmar.agenda.ui.components.FieldRow
+import br.com.acalmar.agenda.ui.components.paymentDayLabel
+import br.com.acalmar.agenda.ui.components.receiveMessage
+import br.com.acalmar.agenda.ui.components.ReceiveDialog
+import br.com.acalmar.agenda.domain.RestChoice
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,7 +72,6 @@ import br.com.acalmar.agenda.domain.summarize
 import br.com.acalmar.agenda.domain.weekdayName
 import br.com.acalmar.agenda.ui.LocalNotifier
 import br.com.acalmar.agenda.ui.LocalRepo
-import br.com.acalmar.agenda.ui.agenda.PaymentDialog
 import br.com.acalmar.agenda.ui.components.ChoiceChip
 import br.com.acalmar.agenda.ui.components.DayPickerDialog
 import br.com.acalmar.agenda.ui.components.EmptyState
@@ -88,9 +95,10 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
 
     var selectedDay by rememberSaveable { mutableLongStateOf(todayDay) }
     var pickingDate by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<CashEntry?>(null) }
-    var creating by remember { mutableStateOf(false) }
-    var receiving by remember { mutableStateOf<Receivable?>(null) }
+    // Guardam só a identificação, para o diálogo aberto continuar aberto se a tela for recriada.
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var creating by rememberSaveable { mutableStateOf(false) }
+    var receivingKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     val allCash by repo.cash.collectAsStateWithLifecycle(initialValue = emptyList())
     val receivables by repo.receivables.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -188,7 +196,7 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
                 }
             }
             items(entries, key = { "e${it.id}" }) { entry ->
-                EntryRow(entry, onClick = { editing = entry })
+                EntryRow(entry, onClick = { editingId = entry.id })
             }
 
             // ---- A receber
@@ -221,7 +229,7 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
                                 )
                                 Text(formatMoney(r.dueCents), color = Brand.Terracotta, fontWeight = FontWeight.SemiBold)
                             }
-                            TextButton(onClick = { receiving = r }) { Text("Receber") }
+                            TextButton(onClick = { receivingKey = r.key }) { Text("Receber") }
                         }
                     }
                 }
@@ -251,29 +259,30 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
         )
     }
 
+    val editing = editingId?.let { id -> allCash.firstOrNull { it.id == id } }
     if (creating || editing != null) {
-        val entry = editing
         EntryDialog(
-            entry = entry,
+            entry = editing,
             day = selectedDay,
+            today = todayDay,
             onDismiss = {
                 creating = false
-                editing = null
+                editingId = null
             },
             onSave = { saved ->
                 creating = false
-                editing = null
+                editingId = null
                 scope.launch {
                     repo.saveCash(saved)
-                    notifier.show(if (entry == null) "Lançamento salvo" else "Lançamento atualizado")
+                    notifier.show(if (editing == null) "Lançamento salvo" else "Lançamento atualizado")
                 }
             },
             onDelete = {
                 creating = false
-                editing = null
-                if (entry != null) {
+                editingId = null
+                if (editing != null) {
                     scope.launch {
-                        repo.deleteCash(entry.id)
+                        repo.deleteCash(editing.id)
                         notifier.show("Lançamento excluído")
                     }
                 }
@@ -281,18 +290,18 @@ fun CashScreen(onOpenClient: (Long) -> Unit) {
         )
     }
 
-    receiving?.let { r ->
-        PaymentDialog(
+    receivables.firstOrNull { it.key == receivingKey }?.let { r ->
+        ReceiveDialog(
             title = "Receber de ${names[r.clientId] ?: "cliente"}",
-            suggestedCents = r.dueCents,
-            allowLater = false,
-            confirmLabel = "Receber",
-            onDismiss = { receiving = null },
-            onConfirm = { amount, method ->
-                receiving = null
+            dueCents = r.dueCents,
+            defaultDay = todayDay,
+            today = todayDay,
+            onDismiss = { receivingKey = null },
+            onConfirm = { result ->
+                receivingKey = null
                 scope.launch {
-                    repo.receive(r, amount, method, todayDay)
-                    if (amount > 0) notifier.show("Pagamento lançado no caixa de hoje")
+                    repo.receive(r, result.amountCents, result.method, result.day, waiveRest = result.rest == RestChoice.WAIVE)
+                    notifier.show(receiveMessage(r.dueCents, result, todayDay))
                 }
             }
         )
@@ -349,20 +358,24 @@ private fun EntryRow(entry: CashEntry, onClick: () -> Unit) {
 private fun EntryDialog(
     entry: CashEntry?,
     day: Long,
+    today: Long,
     onDismiss: () -> Unit,
     onSave: (CashEntry) -> Unit,
     onDelete: () -> Unit
 ) {
-    var kind by remember { mutableStateOf(entry?.kind ?: CashKind.ENTRADA) }
-    var amount by remember { mutableLongStateOf(entry?.amountCents ?: 0L) }
-    var method by remember { mutableStateOf(entry?.method ?: PayMethod.PIX) }
-    var description by remember { mutableStateOf(entry?.description.orEmpty()) }
+    var kind by rememberSaveable { mutableStateOf(entry?.kind ?: CashKind.ENTRADA) }
+    var amount by rememberSaveable { mutableLongStateOf(entry?.amountCents ?: 0L) }
+    var method by rememberSaveable { mutableStateOf(entry?.method ?: PayMethod.PIX) }
+    var description by rememberSaveable { mutableStateOf(entry?.description.orEmpty()) }
+    var date by rememberSaveable { mutableLongStateOf(entry?.date ?: day) }
+    var pickingDate by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (entry == null) "Novo lançamento" else "Editar lançamento") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ChoiceChip("Entrada", selected = kind == CashKind.ENTRADA, onClick = { kind = CashKind.ENTRADA })
                     ChoiceChip("Saída", selected = kind == CashKind.SAIDA, onClick = { kind = CashKind.SAIDA })
@@ -377,8 +390,14 @@ private fun EntryDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 PayMethodChips(selected = method, onSelect = { method = it })
+                FieldRow(
+                    label = "Data do lançamento",
+                    value = paymentDayLabel(date, today),
+                    icon = Icons.Outlined.CalendarMonth,
+                    onClick = { pickingDate = true }
+                )
                 if (entry != null) {
-                    TextButton(onClick = onDelete) { Text("Excluir lançamento", color = Brand.Terracotta) }
+                    TextButton(onClick = { confirmDelete = true }) { Text("Excluir lançamento", color = Brand.Terracotta) }
                 }
             }
         },
@@ -386,11 +405,45 @@ private fun EntryDialog(
             TextButton(
                 enabled = amount > 0,
                 onClick = {
-                    val base = entry ?: CashEntry(date = day, amountCents = 0)
-                    onSave(base.copy(kind = kind, amountCents = amount, method = method, description = description.trim()))
+                    val base = entry ?: CashEntry(date = date, amountCents = 0)
+                    onSave(
+                        base.copy(
+                            date = date,
+                            kind = kind,
+                            amountCents = amount,
+                            method = method,
+                            description = description.trim()
+                        )
+                    )
                 }
             ) { Text("Salvar", fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+    if (pickingDate) {
+        DayPickerDialog(
+            initialDay = date,
+            onPick = {
+                date = it
+                pickingDate = false
+            },
+            onDismiss = { pickingDate = false }
+        )
+    }
+    if (confirmDelete && entry != null) {
+        val linked = entry.appointmentId != null || entry.clientPackageId != null
+        ConfirmDialog(
+            title = "Excluir lançamento?",
+            text = "${if (entry.kind == CashKind.ENTRADA) "Entrada" else "Saída"} de ${formatMoney(entry.amountCents)}" +
+                (if (entry.description.isNotBlank()) " (${entry.description})" else "") + ". O que foi excluído não volta." +
+                if (linked) " Como é o pagamento de um atendimento ou pacote, o valor volta para \"A receber\"." else "",
+            confirmLabel = "Excluir",
+            danger = true,
+            onConfirm = {
+                confirmDelete = false
+                onDelete()
+            },
+            onDismiss = { confirmDelete = false }
+        )
+    }
 }

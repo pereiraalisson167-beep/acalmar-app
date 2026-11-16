@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cópia de segurança do Android (conta Google) e troca de celular, do Android 12 em diante:
+     só o banco de dados. As fotos ficam de fora para a cópia na nuvem nunca passar do limite de
+     25 MB do Google; elas vão no backup do próprio app (Mais > Backup). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="." />
+        <include domain="file" path="photos/" />
+    </device-transfer>
+</data-extraction-rules>

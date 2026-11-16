@@ -1,5 +1,7 @@
 package br.com.acalmar.agenda.ui.more
 
+import br.com.acalmar.agenda.ui.components.rememberSavedObject
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -134,8 +136,8 @@ fun AnamnesisTemplateScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val template by repo.anamnesisTemplate.collectAsStateWithLifecycle(initialValue = emptyList())
 
-    var editing by remember { mutableStateOf<AnamnesisQuestion?>(null) }
-    var creating by remember { mutableStateOf(false) }
+    var editing by rememberSavedObject(AnamnesisQuestion.serializer())
+    var creating by rememberSaveable { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
 
     fun save(list: List<AnamnesisQuestion>) {
@@ -284,10 +286,10 @@ private fun QuestionDialog(
     onSave: (text: String, type: QuestionType, section: String, alert: String) -> Unit,
     onDelete: () -> Unit
 ) {
-    var text by remember { mutableStateOf(question?.text.orEmpty()) }
-    var type by remember { mutableStateOf(question?.type ?: QuestionType.SIM_NAO) }
-    var section by remember { mutableStateOf(question?.section ?: sections.lastOrNull().orEmpty()) }
-    var alert by remember { mutableStateOf(question?.alert.orEmpty()) }
+    var text by rememberSaveable { mutableStateOf(question?.text.orEmpty()) }
+    var type by rememberSaveable { mutableStateOf(question?.type ?: QuestionType.SIM_NAO) }
+    var section by rememberSaveable { mutableStateOf(question?.section ?: sections.lastOrNull().orEmpty()) }
+    var alert by rememberSaveable { mutableStateOf(question?.alert.orEmpty()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -358,12 +360,14 @@ fun ConsentTextScreen(onBack: () -> Unit) {
     val repo = LocalRepo.current
     val notifier = LocalNotifier.current
     val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf("") }
-    var loaded by remember { mutableStateOf(false) }
+    var text by rememberSaveable { mutableStateOf("") }
+    var loaded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        text = repo.getConsentText()
-        loaded = true
+        if (!loaded) {
+            text = repo.getConsentText()
+            loaded = true
+        }
     }
 
     Scaffold(

@@ -123,7 +123,11 @@ data class ClientPackage(
     val expiresOn: Long? = null,
     /** Sessões já feitas antes de o pacote entrar no app. */
     val usedBefore: Int = 0,
-    val notes: String = ""
+    val notes: String = "",
+    /** Valor que a cliente já tinha pago antes de o pacote entrar no app (não passa pelo caixa). */
+    @ColumnInfo(defaultValue = "0") val paidBeforeCents: Long = 0,
+    /** Desconto dado no pacote: sai de "A receber" sem entrar no caixa. */
+    @ColumnInfo(defaultValue = "0") val discountCents: Long = 0
 )
 
 @Serializable
@@ -176,7 +180,9 @@ data class Appointment(
     val seriesId: String? = null,
     val createdAt: Long = 0,
     /** Evolução: o que foi feito e como a cliente respondeu nesta sessão. */
-    @ColumnInfo(defaultValue = "") val evolution: String = ""
+    @ColumnInfo(defaultValue = "") val evolution: String = "",
+    /** Desconto dado neste atendimento: sai de "A receber" sem entrar no caixa. */
+    @ColumnInfo(defaultValue = "0") val discountCents: Long = 0
 )
 
 val Appointment.endMin: Int get() = startMin + durationMin

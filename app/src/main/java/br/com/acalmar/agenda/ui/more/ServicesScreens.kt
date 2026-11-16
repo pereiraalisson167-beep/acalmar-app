@@ -1,5 +1,8 @@
 package br.com.acalmar.agenda.ui.more
 
+import br.com.acalmar.agenda.ui.components.rememberSavedList
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.serialization.Serializable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -124,6 +127,7 @@ fun ServicesScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
     }
 }
 
+@Serializable
 private data class OfferDraft(val sessions: Int?, val priceCents: Long, val validityDays: Int?)
 
 @Composable
@@ -134,27 +138,33 @@ fun ServiceFormScreen(serviceId: Long, onDone: () -> Unit) {
     val editing = serviceId != 0L
 
     var original by remember { mutableStateOf<Service?>(null) }
-    var name by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf<Int?>(60) }
-    var priceCents by remember { mutableLongStateOf(0L) }
-    var active by remember { mutableStateOf(true) }
-    var returnDays by remember { mutableStateOf<Int?>(30) }
-    val drafts = remember { mutableStateListOf<OfferDraft>() }
+    var name by rememberSaveable { mutableStateOf("") }
+    var duration by rememberSaveable { mutableStateOf<Int?>(60) }
+    var priceCents by rememberSaveable { mutableLongStateOf(0L) }
+    var active by rememberSaveable { mutableStateOf(true) }
+    var returnDays by rememberSaveable { mutableStateOf<Int?>(30) }
+    val drafts = rememberSavedList(OfferDraft.serializer())
+    var filled by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(serviceId) {
         if (editing) {
             repo.getService(serviceId)?.let { s ->
                 original = s
-                name = s.name
-                duration = s.durationMin
-                priceCents = s.priceCents
-                active = s.active
-                returnDays = s.returnDays.takeIf { it > 0 }
+                if (!filled) {
+                    name = s.name
+                    duration = s.durationMin
+                    priceCents = s.priceCents
+                    active = s.active
+                    returnDays = s.returnDays.takeIf { it > 0 }
+                }
             }
-            drafts.clear()
-            drafts.addAll(repo.getOffersFor(serviceId).map { OfferDraft(it.sessions, it.priceCents, it.validityDays) })
+            if (!filled) {
+                drafts.clear()
+                drafts.addAll(repo.getOffersFor(serviceId).map { OfferDraft(it.sessions, it.priceCents, it.validityDays) })
+            }
         }
+        filled = true
     }
 
     val durationOk = (duration ?: 0) in 5..600

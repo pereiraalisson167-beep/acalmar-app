@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -55,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import br.com.acalmar.agenda.data.Appointment
 import br.com.acalmar.agenda.data.ApptStatus
 import br.com.acalmar.agenda.data.Client
+import br.com.acalmar.agenda.data.Keys
 import br.com.acalmar.agenda.data.WorkHours
 import br.com.acalmar.agenda.domain.DAY_MIN
 import br.com.acalmar.agenda.domain.DayItem
@@ -73,6 +75,7 @@ import br.com.acalmar.agenda.domain.weekdayShort
 import br.com.acalmar.agenda.ui.LocalRepo
 import br.com.acalmar.agenda.ui.components.DayPickerDialog
 import br.com.acalmar.agenda.ui.components.SoftCard
+import br.com.acalmar.agenda.ui.more.backupStatus
 import br.com.acalmar.agenda.ui.components.Tag
 import br.com.acalmar.agenda.ui.components.nowMinutes
 import br.com.acalmar.agenda.ui.components.statusStyle
@@ -86,7 +89,8 @@ fun AgendaScreen(
     onNewBlock: (date: Long, start: Int) -> Unit,
     onEditBlock: (Long) -> Unit,
     onOpenClient: (Long) -> Unit,
-    onOpenHours: () -> Unit
+    onOpenHours: () -> Unit,
+    onOpenBackup: () -> Unit
 ) {
     val repo = LocalRepo.current
     val today = LocalDate.now()
@@ -106,6 +110,15 @@ fun AgendaScreen(
     val hours by repo.workHours.collectAsStateWithLifecycle(initialValue = WorkHours())
     val packageStates by repo.packageStates.collectAsStateWithLifecycle(initialValue = emptyList())
     val alertsByClient by repo.alertsByClient.collectAsStateWithLifecycle(initialValue = emptyMap())
+
+    // Backup atrasado: 7 dias sem cópia fora do celular. Quem nunca fez backup só é avisada
+    // depois de 3 dias de uso, para o aviso não aparecer logo na primeira cliente.
+    val settings by repo.settings.collectAsStateWithLifecycle(initialValue = emptyMap())
+    val lastBackup = settings[Keys.LAST_BACKUP]
+    val (backupText, backupOverdue) = backupStatus(lastBackup)
+    val firstUse = clients.minOfOrNull { it.createdAt } ?: Long.MAX_VALUE
+    val backupLate = backupOverdue &&
+        (lastBackup != null || System.currentTimeMillis() - firstUse >= 3 * 86_400_000L)
 
     val clientById = remember(clients) { clients.associateBy { it.id } }
     val dayAppts = weekAppts.filter { it.date == selectedDay }
@@ -146,6 +159,31 @@ fun AgendaScreen(
                 }
                 IconButton(onClick = { pickingDate = true }) {
                     Icon(Icons.Outlined.CalendarMonth, contentDescription = "Escolher data", tint = Brand.Bronze)
+                }
+            }
+
+            // ---- Aviso de backup atrasado (só quando já há clientes cadastradas)
+            if (backupLate && clients.isNotEmpty()) {
+                SoftCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                    onClick = onOpenBackup,
+                    container = Brand.BeigeSoft,
+                    border = Brand.Gold
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = Brand.Bronze, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Backup atrasado", style = MaterialTheme.typography.titleSmall, color = Brand.BronzeDark)
+                            Text(
+                                "$backupText. Toque para guardar uma cópia fora do celular.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Brand.BrownSoft
+                            )
+                        }
+                    }
                 }
             }
 

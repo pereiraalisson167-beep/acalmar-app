@@ -11,6 +11,7 @@ import androidx.room.RoomDatabase
  *
  * Versão 1: agenda, clientes, serviços, pacotes e caixa.
  * Versão 2: anamnese, termos assinados, fotos, orçamentos, evolução das sessões e tempo de retorno.
+ * Versão 3: desconto em atendimentos e pacotes, e valor do pacote pago antes do app.
  *
  * A passagem de uma versão para a outra é gerada pelo Room a partir dos arquivos em app/schemas,
  * e mantém os dados que já estão no celular.
@@ -30,9 +31,9 @@ import androidx.room.RoomDatabase
         Photo::class,
         Quote::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)]
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)]
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AppDao

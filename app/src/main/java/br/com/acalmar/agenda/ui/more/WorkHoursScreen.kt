@@ -1,5 +1,6 @@
 package br.com.acalmar.agenda.ui.more
 
+import br.com.acalmar.agenda.ui.components.rememberSavedObject
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,10 +54,10 @@ fun WorkHoursScreen(onBack: () -> Unit) {
     val notifier = LocalNotifier.current
     val scope = rememberCoroutineScope()
 
-    var hours by remember { mutableStateOf<WorkHours?>(null) }
+    var hours by rememberSavedObject(WorkHours.serializer())
     var target by remember { mutableStateOf<TimeTarget?>(null) }
 
-    LaunchedEffect(Unit) { hours = repo.getWorkHours() }
+    LaunchedEffect(Unit) { if (hours == null) hours = repo.getWorkHours() }
 
     val current = hours
     val valid = current != null &&

@@ -19,6 +19,19 @@ object Keys {
     const val BUSINESS = "business"
     const val ANAMNESIS_TEMPLATE = "anamnesis_template"
     const val CONSENT_TEXT = "consent_text"
+
+    /** Pasta escolhida para o backup automático (endereço dado pelo seletor de pastas do Android). */
+    const val AUTO_BACKUP_FOLDER = "auto_backup_folder"
+    const val AUTO_BACKUP_FOLDER_NAME = "auto_backup_folder_name"
+
+    /** Momento do último backup automático gravado com sucesso. */
+    const val AUTO_BACKUP_AT = "auto_backup_at"
+
+    /** Impressão digital dos dados na última cópia automática (para só copiar quando algo muda). */
+    const val AUTO_BACKUP_HASH = "auto_backup_hash"
+
+    /** Mensagem do último erro do backup automático (vazia quando deu certo). */
+    const val AUTO_BACKUP_ERROR = "auto_backup_error"
 }
 
 @Serializable

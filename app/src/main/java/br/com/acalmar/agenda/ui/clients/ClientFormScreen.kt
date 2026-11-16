@@ -1,5 +1,6 @@
 package br.com.acalmar.agenda.ui.clients
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -50,23 +51,29 @@ fun ClientFormScreen(clientId: Long, onDone: () -> Unit) {
     val editing = clientId != 0L
 
     var original by remember { mutableStateOf<Client?>(null) }
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var birthday by remember { mutableStateOf("") }
-    var howFound by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var birthday by rememberSaveable { mutableStateOf("") }
+    var howFound by rememberSaveable { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
+
+    // `filled` evita que os dados gravados substituam o que já foi digitado quando a tela é recriada.
+    var filled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(clientId) {
         if (editing) {
             repo.getClient(clientId)?.let { c ->
                 original = c
-                name = c.name
-                phone = c.phone
-                birthday = c.birthday
-                howFound = c.howFound
-                notes = c.notes
+                if (!filled) {
+                    name = c.name
+                    phone = c.phone
+                    birthday = c.birthday
+                    howFound = c.howFound
+                    notes = c.notes
+                }
             }
         }
+        filled = true
     }
 
     val birthdayOk = isValidBirthday(birthday)

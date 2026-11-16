@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,18 +38,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import br.com.acalmar.agenda.AcalmarApp
+import br.com.acalmar.agenda.data.AutoBackup
 import br.com.acalmar.agenda.data.BackupSummary
 import br.com.acalmar.agenda.data.Keys
 import br.com.acalmar.agenda.ui.LocalNotifier
 import br.com.acalmar.agenda.ui.LocalRepo
 import br.com.acalmar.agenda.ui.components.AcalmarTopBar
 import br.com.acalmar.agenda.ui.components.ConfirmDialog
+import br.com.acalmar.agenda.ui.components.SectionLabel
 import br.com.acalmar.agenda.ui.components.SoftCard
 import br.com.acalmar.agenda.ui.theme.Brand
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.io.InputStream
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 private fun plural(count: Int, one: String, many: String): String = "$count " + if (count == 1) one else many
 
@@ -59,6 +66,18 @@ private fun describe(summary: BackupSummary): String {
     )
     if (summary.photos > 0) parts += plural(summary.photos, "foto", "fotos")
     return parts.dropLast(1).joinToString(", ") + " e " + parts.last()
+}
+
+/** "hoje às 14:32", "ontem às 9:05" ou "em 03/11 às 18:40". */
+private fun whenText(millis: Long): String {
+    val moment = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+    val time = "%d:%02d".format(moment.hour, moment.minute)
+    val days = LocalDate.now().toEpochDay() - moment.toLocalDate().toEpochDay()
+    return when (days) {
+        0L -> "hoje às $time"
+        1L -> "ontem às $time"
+        else -> "em %02d/%02d às %s".format(moment.dayOfMonth, moment.monthValue, time)
+    }
 }
 
 /**
@@ -77,6 +96,30 @@ fun BackupScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf<String?>(null) }
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
     var pendingSummary by remember { mutableStateOf("") }
+
+    val autoBackup = remember { (context.applicationContext as AcalmarApp).autoBackup }
+    val autoFolder = settings[Keys.AUTO_BACKUP_FOLDER].orEmpty()
+    val autoFolderName = settings[Keys.AUTO_BACKUP_FOLDER_NAME].orEmpty()
+    val autoAt = settings[Keys.AUTO_BACKUP_AT]?.toLongOrNull()
+    val autoError = settings[Keys.AUTO_BACKUP_ERROR].orEmpty()
+
+    val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) {
+            busy = "Gravando a primeira cópia…"
+            scope.launch {
+                val error = runCatching {
+                    AutoBackup.keepAccess(context, tree)
+                    if (autoFolder.isNotBlank() && autoFolder != tree.toString()) {
+                        AutoBackup.releaseAccess(context, Uri.parse(autoFolder))
+                    }
+                    repo.setAutoBackupFolder(tree.toString(), AutoBackup.folderLabel(tree))
+                    autoBackup.runNow()
+                }.getOrElse { "Não foi possível usar esta pasta. Escolha outra." }
+                busy = null
+                notifier.show(error ?: "Backup automático ligado")
+            }
+        }
+    }
 
     fun open(uri: Uri): InputStream =
         context.contentResolver.openInputStream(uri) ?: throw IOException("Sem acesso ao arquivo")
@@ -159,6 +202,78 @@ fun BackupScreen(onBack: () -> Unit) {
             Text(
                 "Na tela que abrir, escolha o Google Drive como local para salvar. Assim a cópia fica fora do celular. " +
                     "O ideal é fazer um backup por semana.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Brand.BrownSoft
+            )
+
+            // ---- Backup automático
+            SectionLabel("Backup automático", Modifier.padding(top = 12.dp))
+            SoftCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    if (autoFolder.isBlank()) {
+                        Text("Desligado", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Escolha uma pasta do celular e o app passa a guardar nela, sozinho, uma cópia de tudo " +
+                                "sempre que algo mudar.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Brand.BrownSoft
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = { folderLauncher.launch(null) },
+                            enabled = busy == null,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Escolher pasta")
+                        }
+                    } else {
+                        Text("Ligado", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Pasta: $autoFolderName", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (autoAt != null) "Última cópia automática: ${whenText(autoAt)}" else "Nenhuma cópia automática ainda",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Brand.BrownSoft
+                        )
+                        if (autoError.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(autoError, style = MaterialTheme.typography.bodyMedium, color = Brand.Terracotta)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row {
+                            TextButton(
+                                enabled = busy == null,
+                                onClick = {
+                                    busy = "Gravando a cópia…"
+                                    scope.launch {
+                                        val error = autoBackup.runNow()
+                                        busy = null
+                                        notifier.show(error ?: "Cópia automática gravada")
+                                    }
+                                }
+                            ) { Text("Copiar agora") }
+                            TextButton(enabled = busy == null, onClick = { folderLauncher.launch(null) }) { Text("Trocar pasta") }
+                            TextButton(
+                                enabled = busy == null,
+                                onClick = {
+                                    scope.launch {
+                                        AutoBackup.releaseAccess(context, Uri.parse(autoFolder))
+                                        repo.clearAutoBackupFolder()
+                                        notifier.show("Backup automático desligado")
+                                    }
+                                }
+                            ) { Text("Desligar", color = Brand.Terracotta) }
+                        }
+                    }
+                }
+            }
+            Text(
+                "A cópia automática fica no próprio celular (3 arquivos, em rodízio). Ela protege se o app for apagado " +
+                    "ou der defeito. Se o celular quebrar ou for roubado, o que salva é o backup enviado para o Google Drive, " +
+                    "pelo botão \"Fazer backup agora\".",
                 style = MaterialTheme.typography.bodySmall,
                 color = Brand.BrownSoft
             )

@@ -578,6 +578,8 @@ def walk(apk, old_apk):
     tap("Bloquear")
     shot("57-agenda-final")
 
+    version_21()
+
     # ---- Hora de chamar de volta: adianta o relógio do emulador em 45 dias
     adb("root")
     time.sleep(3)
@@ -585,6 +587,8 @@ def walk(apk, old_apk):
     adb("shell", "date", future.strftime("%m%d%H%M%Y.%S"))
     adb("shell", "am", "force-stop", PKG)
     open_app()
+    check("aviso de backup atrasado na agenda, 45 dias depois", visible("Backup atrasado"))
+    shot("57b-agenda-backup-atrasado")
     go_tab("Clientes")
     shot("58-clientes-45-dias-depois")
     if tap("Hora de chamar de volta", optional=True, scrolls=0):
@@ -594,6 +598,225 @@ def walk(apk, old_apk):
     else:
         note("aviso: lista de chamar de volta nao apareceu (relogio do emulador nao mudou?)")
 
+
+
+def erase(count):
+    """Apaga `count` caracteres do campo em que o cursor está."""
+    for _ in range(count):
+        adb("shell", "input", "keyevent", "67")
+    time.sleep(0.5)
+
+
+def app_pid():
+    return adb("shell", "pidof", PKG).stdout.decode().strip()
+
+
+def kill_in_background():
+    """Sai para a tela inicial e faz o Android encerrar o app, como acontece quando falta memória.
+
+    Devolve True quando o app foi mesmo encerrado e reaberto (processo novo).
+    """
+    before = app_pid()
+    adb("shell", "input", "keyevent", "3")
+    time.sleep(3)
+    adb("shell", "am", "kill", PKG)
+    time.sleep(3)
+    if app_pid() != "":
+        # O sistema ainda não considerou o app "em segundo plano": encerra o processo direto.
+        adb("root")
+        time.sleep(3)
+        adb("shell", "kill", "-9", before)
+        time.sleep(3)
+    killed = app_pid() == ""
+    note(f"app encerrado em segundo plano: {killed} (processo {before})")
+    adb("shell", "am", "start", "-n", PKG + "/.MainActivity")
+    time.sleep(7)
+    press_wait_dialog()
+    after = app_pid()
+    return killed and after not in ("", before)
+
+
+def scroll_to(text=None, regex=None, tries=5):
+    """Rola a tela para baixo até o elemento aparecer. Devolve se ele ficou à vista."""
+    for _ in range(tries):
+        if visible(text, regex):
+            return True
+        scroll(up=True)
+    return visible(text, regex)
+
+
+def pick_folder():
+    """Escolhe a pasta Documents no seletor de pastas do Android."""
+    time.sleep(4)
+    dump_screen("seletor de pastas")
+    use = r"(?i)use this folder"
+    if not visible(regex=use) or not tap(regex=r"Documents", wait=2, optional=True, scrolls=0):
+        tap(regex=r"(?i)show roots", wait=3, optional=True, scrolls=0)
+        time.sleep(2)
+        dump_screen("locais")
+        tap(regex=r"(?i)(sdk_gphone.*|android sdk built.*|internal storage|phone)", wait=3, optional=True, scrolls=0)
+        time.sleep(2)
+        tap(regex=r"Documents", wait=3, optional=True, scrolls=1)
+    time.sleep(2)
+    dump_screen("pasta escolhida")
+    tap(regex=use, wait=5, optional=True, scrolls=0)
+    time.sleep(2)
+    tap(regex=r"(?i)allow", wait=5, optional=True, scrolls=0)
+    time.sleep(6)
+
+
+def version_21():
+    """Correções e novidades da versão 2.1."""
+
+    # ---- Formulário não perde o que foi digitado quando o Android encerra o app
+    go_tab("Clientes")
+    tap("Nova cliente")
+    tap_field("Nome", 0)
+    type_text("Joana Teste")
+    hide_keyboard()
+    shot("60-cliente-digitando")
+    restarted = kill_in_background()
+    shot("61-cliente-depois-de-reabrir")
+    check("app foi encerrado e reaberto pelo sistema", restarted)
+    check("formulario manteve o nome digitado depois de o app ser encerrado", visible("Joana Teste"))
+    tap("Salvar")
+    check("cliente salva depois de reabrir", visible("Joana Teste"))
+
+    # ---- Desconto não vira dívida
+    go_tab("Agenda")
+    tap("Hoje", wait=2, optional=True, scrolls=0)
+    go_next_workday()
+    tap("Agendar")
+    tap("Escolher cliente")
+    tap("Maria Silva")
+    tap("Escolher serviço")
+    tap("Limpeza de pele")
+    pick_time()
+    tap("Agendar", last=True)
+    shot("62-agenda-limpeza")
+    tap("Maria Silva", last=True)
+    tap("Concluir atendimento")
+    tap_field("Valor recebido", 0)
+    erase(6)
+    type_text("8000")
+    hide_keyboard()
+    check("restante aparece ao receber menos", visible(regex=r"Restante: R\$\s?15,00"))
+    tap("Foi desconto")
+    check("campo do dia do caixa", visible("Entra no caixa de"))
+    shot("63-concluir-com-desconto")
+    tap("Concluir")
+    time.sleep(2)
+    go_tab("Caixa")
+    shot("64-caixa-depois-do-desconto")
+    check("pagamento com desconto entrou no caixa", visible(regex=r"Limpeza de pele · Maria Silva"))
+    scroll(up=True)
+    check("desconto nao ficou em A receber", not visible("A RECEBER"))
+    to_top()
+
+    # ---- Excluir lançamento pede confirmação e a data pode ser alterada
+    tap(regex=r"Limpeza de pele · Maria Silva")
+    check("data do lancamento pode ser alterada", visible("Data do lançamento"))
+    shot("65-editar-lancamento")
+    tap("Excluir lançamento")
+    check("excluir lancamento pede confirmacao", visible("Excluir lançamento?"))
+    shot("66-confirmar-exclusao")
+    tap("Cancelar", last=True)
+    tap("Cancelar", last=True, wait=3, optional=True, scrolls=0)
+
+    # ---- Horário ocupado pede confirmação (bloqueia 12:00 e tenta agendar nesse horário)
+    go_tab("Agenda")
+    tap("Bloquear horário")
+    tap("Compromisso pessoal")
+    hide_keyboard()
+    tap("Bloquear")
+    tap("Agendar")
+    tap("Escolher cliente")
+    tap("Maria Silva")
+    tap("Escolher serviço")
+    tap("Limpeza de pele")
+    tap("Outro horário")
+    time.sleep(1)
+    dump_screen("relogio")
+    if tap(regex=r"12( hours| o'clock| horas)?", wait=3, optional=True, scrolls=0):
+        tap("OK")
+        tap("Agendar", last=True)
+        asked = visible("Este horário já está ocupado")
+        check("horario ocupado pede confirmacao antes de salvar", asked)
+        shot("67-horario-ocupado")
+        if asked:
+            tap("Voltar")
+            back()
+    else:
+        note("aviso: nao foi possivel escolher 12:00 no relogio; confirmacao de horario ocupado nao conferida")
+        tap("Cancelar", wait=3, optional=True, scrolls=0)
+        back()
+
+    # ---- Pacote antigo já pago e correção de pacote vendido
+    go_tab("Clientes")
+    tap("Maria Silva")
+    tap("Vender pacote")
+    tap("Escolher serviço")
+    tap(regex=r"Massagem relaxante")
+    tap("Já foi pago antes")
+    shot("68-pacote-ja-pago-antes")
+    tap("Salvar pacote")
+    time.sleep(2)
+    check("pacote antigo aparece como pago antes do app", scroll_to(regex=r"(?s).*pagos antes do app.*"))
+    check("pacote antigo nao virou divida", not visible(regex=r"Falta receber .*"))
+    shot("69-ficha-pacote-antigo")
+    if tap("Corrigir pacote", optional=True):
+        check("tela de correcao do pacote", visible("Salvar correção"))
+        shot("70-corrigir-pacote")
+        tap("Salvar correção")
+    else:
+        fail("corrigir pacote")
+    go_tab("Caixa")
+    shot("71-caixa-sem-pacote-antigo")
+    check("pacote antigo nao entrou no caixa", not visible(regex=r"(?s).*Massagem relaxante.*"))
+
+    # ---- Bloqueio de vários dias desfeito de uma vez
+    go_tab("Agenda")
+    start = device_today() + datetime.timedelta(days=1)
+    while start.weekday() == 6:
+        start += datetime.timedelta(days=1)
+    until = start + datetime.timedelta(days=2)
+    if until.month == start.month:
+        tap("Bloquear horário")
+        tap("Férias")
+        hide_keyboard()
+        tap("Repetir todos os dias até (opcional)")
+        time.sleep(1)
+        dump_screen("calendario")
+        if tap(regex=rf"(?s).*\b\w+ {until.day}, {until.year}.*", wait=3, optional=True, scrolls=0):
+            tap("OK")
+            shot("72-bloqueio-varios-dias")
+            tap(regex=r"Bloquear 3 dias")
+            tap("Férias")
+            tap("Excluir bloqueio")
+            check("bloqueio de varios dias oferece excluir todos", visible("Todos os 3 dias"))
+            shot("73-excluir-bloqueio-varios-dias")
+            tap("Todos os 3 dias")
+            time.sleep(2)
+            check("bloqueio de varios dias desfeito de uma vez", not visible("Férias"))
+        else:
+            note("aviso: nao foi possivel escolher a data final no calendario; bloqueio de varios dias nao conferido")
+            tap("Cancelar", wait=3, optional=True, scrolls=0)
+            back()
+    else:
+        note("aviso: fim do mes; bloqueio de varios dias nao conferido nesta rodada")
+
+    # ---- Backup automático
+    go_tab("Mais")
+    tap("Backup")
+    tap("Escolher pasta")
+    pick_folder()
+    shot("74-backup-automatico")
+    check("backup automatico ligado", visible("Ligado"))
+    check("primeira copia automatica gravada", visible(regex=r"Última cópia automática: hoje às .*"))
+    listing = adb("shell", "ls", "-l", "/sdcard/Documents").stdout.decode("utf-8", "ignore")
+    note("pasta Documents: " + listing.strip()[-400:])
+    check("arquivo do backup automatico existe na pasta", "acalmar-backup-automatico-" in listing)
+    back()
 
 
 def report():

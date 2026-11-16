@@ -174,3 +174,36 @@ fun repeatDates(first: LocalDate, every: RepeatEvery, count: Int): List<LocalDat
 
 /** Arredonda para cima até o próximo múltiplo de `step` (ex.: 09:17 com passo 30 -> 09:30). */
 fun roundUpTo(min: Int, step: Int): Int = if (step <= 0) min else ((min + step - 1) / step) * step
+
+/**
+ * Quantas sessões podem ser agendadas de uma vez em "sessões que se repetem".
+ * Com pacote, o limite é o que ainda falta agendar; sem pacote, 30.
+ * Menos de 2 significa que não dá para repetir.
+ */
+fun repeatLimit(usesPackage: Boolean, packageToSchedule: Int): Int =
+    if (usesPackage) packageToSchedule.coerceAtLeast(0) else 30
+
+/** Quantidade de sessões efetivamente agendada, respeitando o limite. */
+fun repeatCountFor(wanted: Int, limit: Int): Int = if (limit < 2) 1 else wanted.coerceIn(2, limit)
+
+/**
+ * Dias seguidos de um mesmo bloqueio (ex.: férias de 10 dias): os bloqueios vizinhos, dia após
+ * dia, com o mesmo período e o mesmo motivo. Devolve em ordem de data e sempre inclui `block`.
+ */
+fun blockRun(block: TimeBlock, all: List<TimeBlock>): List<TimeBlock> {
+    fun same(b: TimeBlock) = b.allDay == block.allDay && b.reason == block.reason &&
+        (block.allDay || (b.startMin == block.startMin && b.endMin == block.endMin))
+    val byDay = all.filter { it.id != block.id && same(it) }.groupBy { it.date }.mapValues { it.value.first() }
+    val out = mutableListOf(block)
+    var d = block.date - 1
+    while (true) {
+        out += byDay[d] ?: break
+        d--
+    }
+    d = block.date + 1
+    while (true) {
+        out += byDay[d] ?: break
+        d++
+    }
+    return out.sortedBy { it.date }
+}

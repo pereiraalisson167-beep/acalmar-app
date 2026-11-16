@@ -1,5 +1,8 @@
 package br.com.acalmar.agenda.ui.agenda
 
+import br.com.acalmar.agenda.domain.repeatCountFor
+import br.com.acalmar.agenda.domain.repeatLimit
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -102,37 +105,42 @@ fun AppointmentFormScreen(
 
     var original by remember { mutableStateOf<Appointment?>(null) }
     var loaded by remember { mutableStateOf(!editing) }
-    var clientId by remember { mutableLongStateOf(initialClientId) }
-    var serviceId by remember { mutableStateOf<Long?>(null) }
-    var serviceName by remember { mutableStateOf("") }
-    var day by remember { mutableLongStateOf(if (initialDate >= 0) initialDate else today) }
-    var startMin by remember { mutableIntStateOf(initialStart) }
-    var durationMin by remember { mutableIntStateOf(60) }
-    var priceCents by remember { mutableLongStateOf(0L) }
-    var packageChoice by remember { mutableStateOf<Boolean?>(null) }
-    var notes by remember { mutableStateOf("") }
-    var repeat by remember { mutableStateOf(RepeatEvery.NONE) }
-    var repeatCount by remember { mutableIntStateOf(5) }
-    var dialog by remember { mutableStateOf(FormDialog.NONE) }
+    var clientId by rememberSaveable { mutableLongStateOf(initialClientId) }
+    var serviceId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var serviceName by rememberSaveable { mutableStateOf("") }
+    var day by rememberSaveable { mutableLongStateOf(if (initialDate >= 0) initialDate else today) }
+    var startMin by rememberSaveable { mutableIntStateOf(initialStart) }
+    var durationMin by rememberSaveable { mutableIntStateOf(60) }
+    var priceCents by rememberSaveable { mutableLongStateOf(0L) }
+    var packageChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var repeat by rememberSaveable { mutableStateOf(RepeatEvery.NONE) }
+    var repeatCount by rememberSaveable { mutableIntStateOf(5) }
+    var dialog by rememberSaveable { mutableStateOf(FormDialog.NONE) }
     var repeatWarnings by remember { mutableStateOf<List<String>?>(null) }
     var saving by remember { mutableStateOf(false) }
+    // `filled` evita que os dados gravados substituam o que já foi alterado quando a tela é recriada.
+    var filled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(appointmentId) {
         if (editing) {
             repo.getAppointment(appointmentId)?.let { a ->
                 original = a
-                clientId = a.clientId
-                serviceId = a.serviceId
-                serviceName = a.serviceName
-                day = a.date
-                startMin = a.startMin
-                durationMin = a.durationMin
-                priceCents = a.priceCents
-                packageChoice = a.clientPackageId != null
-                notes = a.notes
+                if (!filled) {
+                    clientId = a.clientId
+                    serviceId = a.serviceId
+                    serviceName = a.serviceName
+                    day = a.date
+                    startMin = a.startMin
+                    durationMin = a.durationMin
+                    priceCents = a.priceCents
+                    packageChoice = a.clientPackageId != null
+                    notes = a.notes
+                }
             }
             loaded = true
         }
+        filled = true
     }
 
     val clients by repo.clients.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -158,8 +166,11 @@ fun AppointmentFormScreen(
             )
     }
     val usePackage = eligible != null && (packageChoice ?: true)
-    val maxRepeat = if (usePackage && eligible != null) eligible.toSchedule.coerceAtLeast(1) else 30
-    val count = repeatCount.coerceIn(2, maxOf(2, maxRepeat))
+    // Com pacote, não dá para agendar mais sessões do que as que restam nele.
+    val maxRepeat = repeatLimit(usePackage, eligible?.toSchedule ?: 0)
+    val canRepeat = maxRepeat >= 2
+    val effectiveRepeat = if (canRepeat) repeat else RepeatEvery.NONE
+    val count = repeatCountFor(repeatCount, maxRepeat)
 
     val busy = busyRanges(dayAppts, dayBlocks, lunch, excludeApptId = original?.id)
     val starts = freeStarts(
@@ -201,7 +212,7 @@ fun AppointmentFormScreen(
             )
             notifier.show("Agendamento atualizado")
         } else {
-            val dates = repeatDates(date, repeat, count)
+            val dates = repeatDates(date, effectiveRepeat, count)
             val seriesId = if (dates.size > 1) UUID.randomUUID().toString() else null
             repo.createAppointments(
                 dates.map { d ->
@@ -224,11 +235,17 @@ fun AppointmentFormScreen(
         onDone()
     }
 
-    /** Nas sessões que se repetem, confere as datas seguintes antes de gravar. */
-    suspend fun repeatConflicts(): List<String> {
-        if (original != null || repeat == RepeatEvery.NONE) return emptyList()
+    /**
+     * Confere, antes de gravar, se o horário já está ocupado: na data escolhida e, nas sessões
+     * que se repetem, também nas datas seguintes. Lista vazia = tudo livre.
+     */
+    suspend fun occupiedDates(): List<String> {
         val out = mutableListOf<String>()
-        repeatDates(date, repeat, count).drop(1).forEach { d ->
+        conflicts.forEach { c ->
+            out += "${formatDateShort(date)} · ${c.what} (${formatTimeRange(c.startMin, c.endMin)})"
+        }
+        if (original != null || effectiveRepeat == RepeatEvery.NONE) return out
+        repeatDates(date, effectiveRepeat, count).drop(1).forEach { d ->
             val epoch = d.toEpochDay()
             val h = hours.forDate(d)
             val found = findConflicts(
@@ -253,7 +270,7 @@ fun AppointmentFormScreen(
                 onClick = {
                     saving = true
                     scope.launch {
-                        val warnings = repeatConflicts()
+                        val warnings = occupiedDates()
                         if (warnings.isNotEmpty()) {
                             repeatWarnings = warnings
                             saving = false
@@ -389,13 +406,21 @@ fun AppointmentFormScreen(
 
             // ---- Repetição (só ao criar)
             if (!editing) {
-                FieldRow(
-                    label = "Repetir",
-                    value = if (repeat == RepeatEvery.NONE) repeat.label else "${repeat.label} · $count sessões",
-                    icon = Icons.Outlined.Repeat,
-                    onClick = { dialog = FormDialog.REPEAT }
-                )
-                if (repeat != RepeatEvery.NONE) {
+                if (canRepeat) {
+                    FieldRow(
+                        label = "Repetir",
+                        value = if (repeat == RepeatEvery.NONE) repeat.label else "${repeat.label} · $count sessões",
+                        icon = Icons.Outlined.Repeat,
+                        onClick = { dialog = FormDialog.REPEAT }
+                    )
+                } else {
+                    Text(
+                        "O pacote só tem mais 1 sessão para agendar, então este horário não se repete.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Brand.BrownSoft
+                    )
+                }
+                if (effectiveRepeat != RepeatEvery.NONE) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Quantas sessões", modifier = Modifier.weight(1f))
                         FilledTonalIconButton(onClick = { repeatCount = (count - 1).coerceAtLeast(2) }) {
@@ -406,11 +431,11 @@ fun AppointmentFormScreen(
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
-                        FilledTonalIconButton(onClick = { repeatCount = (count + 1).coerceAtMost(maxOf(2, maxRepeat)) }) {
+                        FilledTonalIconButton(onClick = { repeatCount = (count + 1).coerceAtMost(maxRepeat) }) {
                             Icon(Icons.Outlined.Add, contentDescription = "Mais")
                         }
                     }
-                    val last = repeatDates(date, repeat, count).last()
+                    val last = repeatDates(date, effectiveRepeat, count).last()
                     Text(
                         "Última sessão em ${formatDateShort(last)}." +
                             if (usePackage && eligible != null) " O pacote permite agendar até ${eligible.toSchedule}." else "",
@@ -428,7 +453,7 @@ fun AppointmentFormScreen(
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
             )
-            if (!usePackage && priceCents > 0 && repeat != RepeatEvery.NONE && !editing) {
+            if (!usePackage && priceCents > 0 && effectiveRepeat != RepeatEvery.NONE && !editing) {
                 Text(
                     "Total das $count sessões: ${formatMoney(priceCents * count)}",
                     style = MaterialTheme.typography.bodySmall,
@@ -503,13 +528,24 @@ fun AppointmentFormScreen(
     if (warnings != null) {
         AlertDialog(
             onDismissRequest = { repeatWarnings = null },
-            title = { Text("Algumas datas já estão ocupadas") },
+            title = {
+                Text(
+                    if (editing || effectiveRepeat == RepeatEvery.NONE) "Este horário já está ocupado" else "Algumas datas já estão ocupadas"
+                )
+            },
             text = {
                 Column {
                     warnings.take(8).forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
                     if (warnings.size > 8) Text("e mais ${warnings.size - 8}…", color = Brand.BrownSoft)
                     Spacer(Modifier.height(8.dp))
-                    Text("Deseja agendar todas mesmo assim? Você pode ajustar cada uma depois.", color = Brand.BrownSoft)
+                    Text(
+                        if (editing || effectiveRepeat == RepeatEvery.NONE) {
+                            "Deseja salvar neste horário mesmo assim?"
+                        } else {
+                            "Deseja agendar todas mesmo assim? Você pode ajustar cada uma depois."
+                        },
+                        color = Brand.BrownSoft
+                    )
                 }
             },
             confirmButton = {
@@ -517,7 +553,7 @@ fun AppointmentFormScreen(
                     repeatWarnings = null
                     saving = true
                     scope.launch { save() }
-                }) { Text("Agendar assim mesmo", fontWeight = FontWeight.SemiBold) }
+                }) { Text(if (editing) "Salvar assim mesmo" else "Agendar assim mesmo", fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { repeatWarnings = null }) { Text("Voltar") } }
         )

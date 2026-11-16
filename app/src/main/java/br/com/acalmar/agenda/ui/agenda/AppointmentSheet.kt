@@ -1,5 +1,13 @@
 package br.com.acalmar.agenda.ui.agenda
 
+import br.com.acalmar.agenda.ui.components.DayPickerDialog
+import br.com.acalmar.agenda.ui.components.PaymentResult
+import br.com.acalmar.agenda.ui.components.PaymentFields
+import br.com.acalmar.agenda.domain.restAfter
+import br.com.acalmar.agenda.domain.discountFor
+import br.com.acalmar.agenda.domain.defaultPaymentDay
+import br.com.acalmar.agenda.domain.RestChoice
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -100,7 +108,7 @@ fun AppointmentSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var dialog by remember { mutableStateOf(SheetDialog.NONE) }
+    var dialog by rememberSaveable { mutableStateOf(SheetDialog.NONE) }
     var following by remember { mutableIntStateOf(0) }
     val date = epochToDate(appt.date)
     val clientName = client?.name ?: "Cliente"
@@ -167,6 +175,13 @@ fun AppointmentSheet(
                 Text(info, style = MaterialTheme.typography.bodyMedium, color = Brand.Bronze, fontWeight = FontWeight.SemiBold)
             } else {
                 Text(formatMoney(appt.priceCents), style = MaterialTheme.typography.titleMedium, color = Brand.Bronze)
+                if (appt.discountCents > 0) {
+                    Text(
+                        "Desconto de ${formatMoney(appt.discountCents)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Brand.BrownSoft
+                    )
+                }
             }
             if (appt.seriesId != null) {
                 Text(
@@ -270,18 +285,27 @@ fun AppointmentSheet(
 
         SheetDialog.CONCLUDE -> ConcludeDialog(
             usesPackage = usesPackage,
-            suggestedCents = appt.priceCents,
+            priceCents = appt.priceCents,
+            defaultDay = defaultPaymentDay(appt.date, todayEpochDay()),
+            today = todayEpochDay(),
             initialEvolution = appt.evolution,
             onDismiss = { dialog = SheetDialog.NONE },
-            onConfirm = { amount, method, evolution ->
+            onConfirm = { result, evolution ->
                 dialog = SheetDialog.NONE
-                val payment = if (amount > 0) PaymentInput(amount, method, todayEpochDay()) else null
+                val charges = !usesPackage && appt.priceCents > 0
+                val paid = result?.amountCents ?: 0L
+                val discount = if (result != null) discountFor(appt.priceCents, paid, result.rest) else 0L
+                val left = restAfter(appt.priceCents, paid) - discount
+                val payment = if (result != null && paid > 0) PaymentInput(paid, result.method, result.day) else null
                 val message = when {
-                    usesPackage -> "Atendimento concluído"
-                    payment != null -> "Atendimento concluído e pagamento lançado no caixa"
-                    else -> "Atendimento concluído · pagamento pendente"
+                    !charges -> "Atendimento concluído"
+                    left > 0 && paid > 0 -> "Atendimento concluído · faltam ${formatMoney(left)} a receber"
+                    left > 0 -> "Atendimento concluído · pagamento pendente"
+                    paid > 0 && discount > 0 -> "Atendimento concluído · pagamento lançado, ${formatMoney(discount)} de desconto"
+                    paid > 0 -> "Atendimento concluído e pagamento lançado no caixa"
+                    else -> "Atendimento concluído · valor dado como desconto"
                 }
-                act(message) { repo.conclude(appt, payment, evolution) }
+                act(message) { repo.conclude(appt, payment, evolution, discount) }
             }
         )
 
@@ -386,69 +410,25 @@ private fun SheetAction(
     }
 }
 
-/**
- * Diálogo de pagamento: valor, forma de pagamento e a opção de receber depois.
- * `onConfirm` recebe 0 quando o pagamento fica pendente.
- */
-@Composable
-fun PaymentDialog(
-    title: String,
-    suggestedCents: Long,
-    onDismiss: () -> Unit,
-    onConfirm: (Long, PayMethod) -> Unit,
-    allowLater: Boolean = true,
-    confirmLabel: String = "Concluir"
-) {
-    var receiveNow by remember { mutableStateOf(true) }
-    var amount by remember { mutableLongStateOf(suggestedCents) }
-    var method by remember { mutableStateOf(PayMethod.PIX) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                if (allowLater) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Recebi o pagamento agora", modifier = Modifier.weight(1f))
-                        Switch(checked = receiveNow, onCheckedChange = { receiveNow = it })
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-                if (receiveNow) {
-                    MoneyField(cents = amount, onChange = { amount = it }, label = "Valor recebido", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
-                    PayMethodChips(selected = method, onSelect = { method = it })
-                } else {
-                    Text(
-                        "O valor fica em \"A receber\" no Caixa até o pagamento.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Brand.BrownSoft
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(if (receiveNow) amount else 0L, method) }) {
-                Text(confirmLabel, fontWeight = FontWeight.SemiBold)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-}
-
 /** Concluir atendimento: pagamento (quando não é sessão de pacote) e anotação de evolução. */
 @Composable
 private fun ConcludeDialog(
     usesPackage: Boolean,
-    suggestedCents: Long,
+    priceCents: Long,
+    defaultDay: Long,
+    today: Long,
     initialEvolution: String,
     onDismiss: () -> Unit,
-    onConfirm: (amountCents: Long, method: PayMethod, evolution: String) -> Unit
+    onConfirm: (payment: PaymentResult?, evolution: String) -> Unit
 ) {
-    var receiveNow by remember { mutableStateOf(true) }
-    var amount by remember { mutableLongStateOf(suggestedCents) }
-    var method by remember { mutableStateOf(PayMethod.PIX) }
-    var evolution by remember { mutableStateOf(initialEvolution) }
+    var receiveNow by rememberSaveable { mutableStateOf(true) }
+    var amount by rememberSaveable { mutableLongStateOf(priceCents) }
+    var method by rememberSaveable { mutableStateOf(PayMethod.PIX) }
+    var day by rememberSaveable { mutableLongStateOf(defaultDay) }
+    var rest by rememberSaveable { mutableStateOf(RestChoice.KEEP) }
+    var pickingDay by rememberSaveable { mutableStateOf(false) }
+    var evolution by rememberSaveable { mutableStateOf(initialEvolution) }
+    val charges = !usesPackage && priceCents > 0
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Concluir atendimento") },
@@ -460,6 +440,12 @@ private fun ConcludeDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         color = Brand.BrownSoft
                     )
+                } else if (!charges) {
+                    Text(
+                        "Atendimento sem valor: nada a receber.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Brand.BrownSoft
+                    )
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Recebi o pagamento agora", modifier = Modifier.weight(1f))
@@ -467,9 +453,19 @@ private fun ConcludeDialog(
                     }
                     Spacer(Modifier.height(8.dp))
                     if (receiveNow) {
-                        MoneyField(cents = amount, onChange = { amount = it }, label = "Valor recebido", modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(12.dp))
-                        PayMethodChips(selected = method, onSelect = { method = it })
+                        PaymentFields(
+                            dueCents = priceCents,
+                            amountCents = amount,
+                            onAmount = { amount = it },
+                            method = method,
+                            onMethod = { method = it },
+                            day = day,
+                            today = today,
+                            onPickDay = { pickingDay = true },
+                            rest = rest,
+                            onRest = { rest = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     } else {
                         Text(
                             "O valor fica em \"A receber\" no Caixa até o pagamento.",
@@ -492,18 +488,31 @@ private fun ConcludeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(if (!usesPackage && receiveNow) amount else 0L, method, evolution) }) {
+            TextButton(onClick = {
+                val payment = if (charges && receiveNow) PaymentResult(amount, method, day, rest) else null
+                onConfirm(payment, evolution)
+            }) {
                 Text("Concluir", fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+    if (pickingDay) {
+        DayPickerDialog(
+            initialDay = day,
+            onPick = {
+                day = it
+                pickingDay = false
+            },
+            onDismiss = { pickingDay = false }
+        )
+    }
 }
 
 /** Anotar ou alterar a evolução de uma sessão. */
 @Composable
 fun EvolutionDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
+    var text by rememberSaveable { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Evolução da sessão") },

@@ -22,7 +22,10 @@ data class PackageState(
     /** Sessões que ainda podem ser agendadas. */
     val toSchedule: Int get() = (pkg.totalSessions - used - scheduled).coerceAtLeast(0)
 
-    val dueCents: Long get() = (pkg.priceCents - paidCents).coerceAtLeast(0)
+    /** Tudo o que já foi acertado: recebido no caixa, pago antes do app e desconto. */
+    val settledCents: Long get() = paidCents + pkg.paidBeforeCents + pkg.discountCents
+
+    val dueCents: Long get() = (pkg.priceCents - settledCents).coerceAtLeast(0)
 
     fun isExpired(today: Long): Boolean = (pkg.expiresOn ?: Long.MAX_VALUE) < today
 
@@ -52,7 +55,10 @@ fun computePackageStates(
     }
 }
 
-/** Um valor que a cliente ainda deve: atendimento concluído sem pagamento ou pacote não quitado. */
+/**
+ * Um valor que a cliente ainda deve: atendimento concluído sem pagamento ou pacote não quitado.
+ * O que foi dado de desconto não conta como dívida.
+ */
 data class Receivable(
     val clientId: Long,
     val title: String,
@@ -60,7 +66,10 @@ data class Receivable(
     val date: Long,
     val appointmentId: Long? = null,
     val clientPackageId: Long? = null
-)
+) {
+    /** Identificação estável, usada para a tela lembrar qual valor está sendo recebido. */
+    val key: String get() = if (appointmentId != null) "a$appointmentId" else "p$clientPackageId"
+}
 
 fun computeReceivables(
     appts: List<Appointment>,
@@ -74,7 +83,7 @@ fun computeReceivables(
     val out = mutableListOf<Receivable>()
     appts.forEach { a ->
         if (a.status == ApptStatus.CONCLUIDO && a.clientPackageId == null && a.priceCents > 0) {
-            val due = a.priceCents - (paidByAppt[a.id] ?: 0L)
+            val due = a.priceCents - a.discountCents - (paidByAppt[a.id] ?: 0L)
             if (due > 0) out += Receivable(a.clientId, a.serviceName, due, a.date, appointmentId = a.id)
         }
     }
@@ -109,3 +118,25 @@ fun summarize(entries: List<CashEntry>): CashSummary {
         .filterValues { it > 0 }
     return CashSummary(ins.sumOf { it.amountCents }, outs.sumOf { it.amountCents }, byMethod)
 }
+
+/**
+ * Ao receber menos do que o devido, o que acontece com o restante: continua em "A receber"
+ * ou é dado como desconto (baixa).
+ */
+enum class RestChoice(val label: String) {
+    KEEP("Fica a receber"),
+    WAIVE("Foi desconto")
+}
+
+/** Quanto sobra depois de receber `paidCents` de um total devido de `dueCents`. */
+fun restAfter(dueCents: Long, paidCents: Long): Long = (dueCents - paidCents).coerceAtLeast(0)
+
+/** Desconto a registrar ao receber `paidCents` de `dueCents` com a escolha indicada para o restante. */
+fun discountFor(dueCents: Long, paidCents: Long, choice: RestChoice): Long =
+    if (choice == RestChoice.WAIVE) restAfter(dueCents, paidCents) else 0L
+
+/**
+ * Dia em que um pagamento entra no caixa por padrão: o dia do atendimento ou da compra,
+ * a não ser que ele ainda esteja no futuro (aí vale hoje).
+ */
+fun defaultPaymentDay(eventDay: Long, today: Long): Long = minOf(eventDay, today)

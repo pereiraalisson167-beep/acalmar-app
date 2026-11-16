@@ -1,5 +1,7 @@
 package br.com.acalmar.agenda.ui.quotes
 
+import br.com.acalmar.agenda.ui.components.rememberSavedList
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -214,34 +216,38 @@ fun QuoteFormScreen(quoteId: Long, initialClientId: Long, onBack: () -> Unit, on
 
     var original by remember { mutableStateOf<Quote?>(null) }
     var loaded by remember { mutableStateOf(!editing) }
-    var clientId by remember { mutableStateOf<Long?>(initialClientId.takeIf { it != 0L }) }
-    var clientName by remember { mutableStateOf("") }
-    val items = remember { mutableStateListOf<QuoteItem>() }
-    var discountCents by remember { mutableLongStateOf(0L) }
-    var validityDays by remember { mutableStateOf<Int?>(7) }
-    var notes by remember { mutableStateOf("") }
+    var clientId by rememberSaveable { mutableStateOf<Long?>(initialClientId.takeIf { it != 0L }) }
+    var clientName by rememberSaveable { mutableStateOf("") }
+    val items = rememberSavedList(QuoteItem.serializer())
+    var filled by rememberSaveable { mutableStateOf(false) }
+    var discountCents by rememberSaveable { mutableLongStateOf(0L) }
+    var validityDays by rememberSaveable { mutableStateOf<Int?>(7) }
+    var notes by rememberSaveable { mutableStateOf("") }
 
     var pickingClient by remember { mutableStateOf(false) }
-    var addingItem by remember { mutableStateOf(false) }
+    var addingItem by rememberSaveable { mutableStateOf(false) }
     // Índice do item em edição; -1 = item novo digitado; nulo = nenhum diálogo aberto.
-    var editingIndex by remember { mutableStateOf<Int?>(null) }
+    var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(quoteId) {
         if (editing) {
             repo.getQuote(quoteId)?.let { q ->
                 original = q
-                clientId = q.clientId
-                clientName = q.clientName
-                items.clear()
-                items.addAll(QuoteModel.parseItems(q.itemsJson))
-                discountCents = q.discountCents
-                validityDays = q.validUntil?.let { (it - q.createdOn).toInt() }
-                notes = q.notes
+                if (!filled) {
+                    clientId = q.clientId
+                    clientName = q.clientName
+                    items.clear()
+                    items.addAll(QuoteModel.parseItems(q.itemsJson))
+                    discountCents = q.discountCents
+                    validityDays = q.validUntil?.let { (it - q.createdOn).toInt() }
+                    notes = q.notes
+                }
             }
             loaded = true
-        } else if (initialClientId != 0L) {
+        } else if (initialClientId != 0L && !filled) {
             clientName = repo.getClient(initialClientId)?.name.orEmpty()
         }
+        filled = true
     }
 
     val createdOn = original?.createdOn ?: today
@@ -421,9 +427,9 @@ fun QuoteFormScreen(quoteId: Long, initialClientId: Long, onBack: () -> Unit, on
 
 @Composable
 private fun ItemDialog(item: QuoteItem?, onDismiss: () -> Unit, onSave: (QuoteItem) -> Unit, onDelete: () -> Unit) {
-    var description by remember { mutableStateOf(item?.description.orEmpty()) }
-    var quantity by remember { mutableStateOf<Int?>(item?.quantity ?: 1) }
-    var unitCents by remember { mutableLongStateOf(item?.unitCents ?: 0L) }
+    var description by rememberSaveable { mutableStateOf(item?.description.orEmpty()) }
+    var quantity by rememberSaveable { mutableStateOf<Int?>(item?.quantity ?: 1) }
+    var unitCents by rememberSaveable { mutableLongStateOf(item?.unitCents ?: 0L) }
     val valid = description.isNotBlank() && (quantity ?: 0) >= 1
 
     AlertDialog(

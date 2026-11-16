@@ -1,5 +1,6 @@
 package br.com.acalmar.agenda.ui.more
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -41,19 +42,22 @@ fun BusinessScreen(onBack: () -> Unit) {
     val notifier = LocalNotifier.current
     val scope = rememberCoroutineScope()
 
-    var name by remember { mutableStateOf("") }
-    var professional by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var instagram by remember { mutableStateOf("") }
-    var loaded by remember { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var professional by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var instagram by rememberSaveable { mutableStateOf("") }
+    var loaded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val info = repo.getBusiness()
-        name = info.name
-        professional = info.professional
-        phone = info.phone
-        instagram = info.instagram
-        loaded = true
+        // Só preenche na primeira vez: se a tela for recriada, vale o que já foi digitado.
+        if (!loaded) {
+            val info = repo.getBusiness()
+            name = info.name
+            professional = info.professional
+            phone = info.phone
+            instagram = info.instagram
+            loaded = true
+        }
     }
 
     Scaffold(

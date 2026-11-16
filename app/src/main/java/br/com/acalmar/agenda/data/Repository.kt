@@ -302,12 +302,18 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
     }
 
     /** Marca como atendido, guarda a anotação da sessão e, se houver pagamento, lança no caixa. */
-    suspend fun conclude(appointment: Appointment, payment: PaymentInput?, evolution: String? = null) {
+    suspend fun conclude(
+        appointment: Appointment,
+        payment: PaymentInput?,
+        evolution: String? = null,
+        discountCents: Long = 0
+    ) {
         db.withTransaction {
             dao.updateAppointment(
                 appointment.copy(
                     status = ApptStatus.CONCLUIDO,
-                    evolution = evolution?.trim() ?: appointment.evolution
+                    evolution = evolution?.trim() ?: appointment.evolution,
+                    discountCents = discountCents.coerceIn(0, appointment.priceCents)
                 )
             )
             if (payment != null && payment.amountCents > 0) {
@@ -332,11 +338,13 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
     suspend fun markNoShow(appointment: Appointment, chargePackage: Boolean) =
         dao.updateAppointment(appointment.copy(status = ApptStatus.FALTOU, chargesPackage = chargePackage))
 
-    /** Volta o atendimento para "agendado" e remove do caixa o pagamento ligado a ele. */
+    /** Volta o atendimento para "agendado" e remove o pagamento e o desconto ligados a ele. */
     suspend fun reopen(appointment: Appointment) {
         db.withTransaction {
             dao.deleteCashForAppointment(appointment.id)
-            dao.updateAppointment(appointment.copy(status = ApptStatus.AGENDADO, chargesPackage = true))
+            dao.updateAppointment(
+                appointment.copy(status = ApptStatus.AGENDADO, chargesPackage = true, discountCents = 0)
+            )
         }
     }
 
@@ -354,6 +362,13 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
         }
 
     suspend fun deleteBlock(id: Long) = dao.deleteBlock(id)
+
+    suspend fun getAllBlocks(): List<TimeBlock> = dao.getBlocks()
+
+    /** Apaga vários bloqueios de uma vez (ex.: todos os dias de umas férias). */
+    suspend fun deleteBlocks(ids: List<Long>) {
+        db.withTransaction { ids.forEach { dao.deleteBlock(it) } }
+    }
 
     // ---------- Pacotes das clientes
 
@@ -394,23 +409,46 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
 
     suspend fun deleteCash(id: Long) = dao.deleteCash(id)
 
-    /** Recebe (total ou parcialmente) um valor pendente. */
-    suspend fun receive(receivable: Receivable, amountCents: Long, method: PayMethod, date: Long) {
-        if (amountCents <= 0) return
-        val clientName = dao.getClient(receivable.clientId)?.name.orEmpty()
-        dao.insertCash(
-            CashEntry(
-                date = date,
-                kind = CashKind.ENTRADA,
-                amountCents = amountCents,
-                method = method,
-                description = joinTitle(receivable.title, clientName),
-                clientId = receivable.clientId,
-                appointmentId = receivable.appointmentId,
-                clientPackageId = receivable.clientPackageId,
-                createdAt = System.currentTimeMillis()
-            )
-        )
+    /**
+     * Recebe (total ou parcialmente) um valor pendente. Com `waiveRest`, o que sobrar é dado como
+     * desconto: sai de "A receber" sem entrar no caixa.
+     */
+    suspend fun receive(
+        receivable: Receivable,
+        amountCents: Long,
+        method: PayMethod,
+        date: Long,
+        waiveRest: Boolean = false
+    ) {
+        val paid = amountCents.coerceAtLeast(0)
+        val waived = if (waiveRest) (receivable.dueCents - paid).coerceAtLeast(0) else 0L
+        if (paid <= 0 && waived <= 0) return
+        db.withTransaction {
+            if (paid > 0) {
+                val clientName = dao.getClient(receivable.clientId)?.name.orEmpty()
+                dao.insertCash(
+                    CashEntry(
+                        date = date,
+                        kind = CashKind.ENTRADA,
+                        amountCents = paid,
+                        method = method,
+                        description = joinTitle(receivable.title, clientName),
+                        clientId = receivable.clientId,
+                        appointmentId = receivable.appointmentId,
+                        clientPackageId = receivable.clientPackageId,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            }
+            if (waived > 0) {
+                receivable.appointmentId?.let { id ->
+                    dao.getAppointment(id)?.let { dao.updateAppointment(it.copy(discountCents = it.discountCents + waived)) }
+                }
+                receivable.clientPackageId?.let { id ->
+                    dao.getClientPackage(id)?.let { dao.updateClientPackage(it.copy(discountCents = it.discountCents + waived)) }
+                }
+            }
+        }
     }
 
     // ---------- Configurações
@@ -476,6 +514,60 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
 
     suspend fun markBackupDone() =
         dao.putSetting(Setting(Keys.LAST_BACKUP, System.currentTimeMillis().toString()))
+
+    // ---------- Backup automático
+
+    suspend fun getSetting(name: String): String? = dao.getSetting(name)
+
+    suspend fun setAutoBackupFolder(uri: String, name: String) =
+        dao.putSettings(
+            listOf(
+                Setting(Keys.AUTO_BACKUP_FOLDER, uri),
+                Setting(Keys.AUTO_BACKUP_FOLDER_NAME, name),
+                Setting(Keys.AUTO_BACKUP_ERROR, "")
+            )
+        )
+
+    suspend fun clearAutoBackupFolder() {
+        db.withTransaction {
+            dao.deleteSetting(Keys.AUTO_BACKUP_FOLDER)
+            dao.deleteSetting(Keys.AUTO_BACKUP_FOLDER_NAME)
+            dao.deleteSetting(Keys.AUTO_BACKUP_ERROR)
+        }
+    }
+
+    suspend fun markAutoBackup(error: String?) {
+        if (error == null) {
+            dao.putSettings(
+                listOf(
+                    Setting(Keys.AUTO_BACKUP_AT, System.currentTimeMillis().toString()),
+                    Setting(Keys.AUTO_BACKUP_ERROR, "")
+                )
+            )
+        } else {
+            dao.putSetting(Setting(Keys.AUTO_BACKUP_ERROR, error))
+        }
+    }
+
+    /**
+     * "Impressão digital" dos dados, para o backup automático saber se algo mudou desde a última
+     * cópia. As anotações do próprio backup ficam de fora, senão cada cópia pareceria uma mudança.
+     */
+    suspend fun dataFingerprint(): String {
+        val file = snapshot()
+        val stable = file.copy(
+            exportedAt = 0,
+            settings = file.settings.filterNot { it.name in BACKUP_NOTES }.sortedBy { it.name }
+        )
+        return withContext(Dispatchers.Default) {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update(stable.toJson().toByteArray(Charsets.UTF_8))
+            stable.photos.map { it.fileName }.sorted().forEach { name ->
+                digest.update((name + ":" + photoStore.file(name).length()).toByteArray(Charsets.UTF_8))
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }
+    }
 
     /**
      * Lê um arquivo de backup: o .zip atual ou o .json da primeira versão do app.
@@ -547,6 +639,9 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
 
     private suspend fun replaceAll(file: BackupFile) {
         db.withTransaction {
+            // As anotações de backup são deste celular (pasta escolhida, data da última cópia):
+            // não vêm do arquivo e continuam valendo depois da restauração.
+            val deviceNotes = dao.getSettings().filter { it.name in BACKUP_NOTES }
             dao.clearCash()
             dao.clearAppointments()
             dao.clearBlocks()
@@ -571,7 +666,8 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
             dao.insertConsents(file.consents)
             dao.insertPhotos(file.photos)
             dao.insertQuotes(file.quotes)
-            dao.putSettings(file.settings)
+            dao.putSettings(file.settings.filterNot { it.name in BACKUP_NOTES })
+            dao.putSettings(deviceNotes)
             dao.putSetting(Setting(Keys.SEEDED, "1"))
         }
     }
@@ -581,6 +677,15 @@ class Repository(private val db: AppDatabase, val photoStore: PhotoStore) {
 
     companion object {
         private val PHOTO_NAME = Regex("[A-Za-z0-9._-]{1,80}")
+
+        private val BACKUP_NOTES = setOf(
+            Keys.LAST_BACKUP,
+            Keys.AUTO_BACKUP_AT,
+            Keys.AUTO_BACKUP_ERROR,
+            Keys.AUTO_BACKUP_FOLDER,
+            Keys.AUTO_BACKUP_FOLDER_NAME,
+            Keys.AUTO_BACKUP_HASH
+        )
 
         fun packageTitle(pkg: ClientPackage): String =
             "Pacote ${pkg.serviceName} (${pkg.totalSessions} sessões)"

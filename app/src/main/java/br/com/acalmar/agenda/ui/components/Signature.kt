@@ -1,5 +1,7 @@
 package br.com.acalmar.agenda.ui.components
 
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,6 +46,11 @@ class SignatureState {
         current = emptyList()
     }
 
+    /** Traços em pontos da tela, como texto, para a assinatura não se perder se a tela for recriada. */
+    fun toSaved(): String =
+        "${size.width},${size.height}|" + (strokes + listOf(current)).filter { it.isNotEmpty() }
+            .joinToString(";") { stroke -> stroke.joinToString(" ") { "${it.x},${it.y}" } }
+
     /** Assinatura em texto, com os pontos convertidos para valores entre 0 e 1. */
     fun encode(): String {
         val width = size.width.coerceAtLeast(1).toFloat()
@@ -51,6 +58,29 @@ class SignatureState {
         return encodeSignature(width / height, strokes.map { stroke -> stroke.map { (it.x / width) to (it.y / height) } })
     }
 }
+
+/** Assinatura em andamento que sobrevive quando a tela é recriada. */
+@Composable
+fun rememberSignatureState(): SignatureState =
+    rememberSaveable(
+        saver = Saver<SignatureState, String>(
+            save = { it.toSaved() },
+            restore = { text ->
+                SignatureState().apply {
+                    val parts = text.split("|", limit = 2)
+                    val wh = parts[0].split(",").mapNotNull { it.toIntOrNull() }
+                    if (wh.size == 2) size = IntSize(wh[0], wh[1])
+                    parts.getOrNull(1)?.split(";")?.forEach { stroke ->
+                        val points = stroke.trim().split(" ").mapNotNull { point ->
+                            val xy = point.split(",").mapNotNull { it.toFloatOrNull() }
+                            if (xy.size == 2) Offset(xy[0], xy[1]) else null
+                        }
+                        if (points.isNotEmpty()) strokes += points
+                    }
+                }
+            }
+        )
+    ) { SignatureState() }
 
 private fun DrawScope.drawStroke(points: List<Offset>, color: Color, width: Float) {
     if (points.size == 1) {

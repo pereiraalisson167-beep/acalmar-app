@@ -1,5 +1,9 @@
 package br.com.acalmar.agenda.ui.clients
 
+import br.com.acalmar.agenda.ui.components.receiveMessage
+import br.com.acalmar.agenda.ui.components.ReceiveDialog
+import br.com.acalmar.agenda.domain.RestChoice
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -64,7 +68,6 @@ import br.com.acalmar.agenda.domain.friendlyDate
 import br.com.acalmar.agenda.ui.LocalNotifier
 import br.com.acalmar.agenda.ui.LocalRepo
 import br.com.acalmar.agenda.ui.agenda.AppointmentSheet
-import br.com.acalmar.agenda.ui.agenda.PaymentDialog
 import br.com.acalmar.agenda.ui.components.AcalmarTopBar
 import br.com.acalmar.agenda.ui.components.AlertChips
 import br.com.acalmar.agenda.ui.components.Avatar
@@ -88,6 +91,7 @@ fun ClientDetailScreen(
     onEdit: () -> Unit,
     onSchedule: () -> Unit,
     onSellPackage: () -> Unit,
+    onEditPackage: (Long) -> Unit,
     onEditAppointment: (Long) -> Unit,
     onAnamnesis: () -> Unit,
     onConsent: () -> Unit,
@@ -113,8 +117,8 @@ fun ClientDetailScreen(
 
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePackage by remember { mutableStateOf<PackageState?>(null) }
-    var receiving by remember { mutableStateOf<Receivable?>(null) }
-    var sheetApptId by remember { mutableStateOf<Long?>(null) }
+    var receivingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var sheetApptId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val appts = remember(allAppts, clientId) { allAppts.filter { it.clientId == clientId } }
     val upcoming = remember(appts, todayDay) {
@@ -297,7 +301,7 @@ fun ClientDetailScreen(
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
-                            TextButton(onClick = { receiving = r }) { Text("Receber") }
+                            TextButton(onClick = { receivingKey = r.key }) { Text("Receber") }
                         }
                     }
                 }
@@ -316,7 +320,7 @@ fun ClientDetailScreen(
                 }
             }
             items(states, key = { "p${it.pkg.id}" }) { state ->
-                PackageCard(state, todayDay, onDelete = { deletePackage = state })
+                PackageCard(state, todayDay, onEdit = { onEditPackage(state.pkg.id) }, onDelete = { deletePackage = state })
             }
 
             // ---- Agendamentos
@@ -359,7 +363,7 @@ fun ClientDetailScreen(
     deletePackage?.let { state ->
         ConfirmDialog(
             title = "Excluir pacote?",
-            text = "O pacote de ${state.pkg.serviceName} será apagado. As sessões já feitas continuam no histórico e os pagamentos continuam no caixa.",
+            text = "O pacote de ${state.pkg.serviceName} será apagado. As sessões já feitas continuam no histórico e os pagamentos continuam no caixa. Para arrumar sessões, valor ou data, use o lápis (corrigir) em vez de excluir.",
             confirmLabel = "Excluir",
             danger = true,
             onConfirm = {
@@ -373,18 +377,18 @@ fun ClientDetailScreen(
         )
     }
 
-    receiving?.let { r ->
-        PaymentDialog(
+    receivables.firstOrNull { it.key == receivingKey }?.let { r ->
+        ReceiveDialog(
             title = "Receber pagamento",
-            suggestedCents = r.dueCents,
-            allowLater = false,
-            confirmLabel = "Receber",
-            onDismiss = { receiving = null },
-            onConfirm = { amount, method ->
-                receiving = null
+            dueCents = r.dueCents,
+            defaultDay = todayDay,
+            today = todayDay,
+            onDismiss = { receivingKey = null },
+            onConfirm = { result ->
+                receivingKey = null
                 scope.launch {
-                    repo.receive(r, amount, method, todayDay)
-                    if (amount > 0) notifier.show("Pagamento lançado no caixa")
+                    repo.receive(r, result.amountCents, result.method, result.day, waiveRest = result.rest == RestChoice.WAIVE)
+                    notifier.show(receiveMessage(r.dueCents, result, todayDay))
                 }
             }
         )
@@ -415,7 +419,7 @@ private fun InfoLine(label: String, value: String) {
 }
 
 @Composable
-private fun PackageCard(state: PackageState, todayDay: Long, onDelete: () -> Unit) {
+private fun PackageCard(state: PackageState, todayDay: Long, onEdit: () -> Unit, onDelete: () -> Unit) {
     val pkg = state.pkg
     val active = state.isActive(todayDay)
     SoftCard(Modifier.fillMaxWidth(), container = if (active) Brand.Card else Brand.GraySoft) {
@@ -432,6 +436,9 @@ private fun PackageCard(state: PackageState, todayDay: Long, onDelete: () -> Uni
                     state.remaining == 0 -> Tag("Concluído", Brand.SageSoft, Brand.Sage)
                     state.isExpired(todayDay) -> Tag("Vencido", Brand.TerracottaSoft, Brand.Terracotta)
                     else -> Tag("Ativo", Brand.Beige, Brand.BronzeDark)
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Outlined.Edit, contentDescription = "Corrigir pacote", tint = Brand.Bronze, modifier = Modifier.size(20.dp))
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Outlined.Delete, contentDescription = "Excluir pacote", tint = Brand.Gray, modifier = Modifier.size(20.dp))
@@ -460,6 +467,8 @@ private fun PackageCard(state: PackageState, todayDay: Long, onDelete: () -> Uni
                     add("Comprado em ${formatDateShort(epochToDate(pkg.purchasedOn))}")
                     pkg.expiresOn?.let { add("vale até ${formatDateShort(epochToDate(it))}") }
                     add(formatMoney(pkg.priceCents))
+                    if (pkg.paidBeforeCents > 0) add("${formatMoney(pkg.paidBeforeCents)} pagos antes do app")
+                    if (pkg.discountCents > 0) add("desconto de ${formatMoney(pkg.discountCents)}")
                 }
                 Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Brand.BrownSoft)
                 if (state.dueCents > 0) {

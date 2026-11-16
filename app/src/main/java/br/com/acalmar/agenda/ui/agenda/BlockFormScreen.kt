@@ -1,5 +1,11 @@
 package br.com.acalmar.agenda.ui.agenda
 
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import br.com.acalmar.agenda.domain.formatDateShort
+import br.com.acalmar.agenda.domain.blockRun
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -69,26 +75,34 @@ fun BlockFormScreen(blockId: Long, initialDate: Long, initialStart: Int, onDone:
     val scope = rememberCoroutineScope()
     val editing = blockId != 0L
 
-    var day by remember { mutableLongStateOf(if (initialDate >= 0) initialDate else todayEpochDay()) }
-    var untilDay by remember { mutableStateOf<Long?>(null) }
-    var allDay by remember { mutableStateOf(false) }
-    var startMin by remember { mutableIntStateOf(if (initialStart >= 0) initialStart else 12 * 60) }
-    var endMin by remember { mutableIntStateOf(if (initialStart >= 0) (initialStart + 60).coerceAtMost(24 * 60 - 1) else 13 * 60) }
-    var reason by remember { mutableStateOf("") }
-    var dialog by remember { mutableStateOf(BlockDialog.NONE) }
+    var day by rememberSaveable { mutableLongStateOf(if (initialDate >= 0) initialDate else todayEpochDay()) }
+    var untilDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    var allDay by rememberSaveable { mutableStateOf(false) }
+    var startMin by rememberSaveable { mutableIntStateOf(if (initialStart >= 0) initialStart else 12 * 60) }
+    var endMin by rememberSaveable { mutableIntStateOf(if (initialStart >= 0) (initialStart + 60).coerceAtMost(24 * 60 - 1) else 13 * 60) }
+    var reason by rememberSaveable { mutableStateOf("") }
+    var dialog by rememberSaveable { mutableStateOf(BlockDialog.NONE) }
+
+    var filled by rememberSaveable { mutableStateOf(false) }
+    // Dias seguidos do mesmo bloqueio (ex.: férias), para poder desfazer todos de uma vez.
+    var blockDays by remember { mutableStateOf<List<TimeBlock>>(emptyList()) }
 
     LaunchedEffect(blockId) {
         if (editing) {
             repo.getBlock(blockId)?.let { b ->
-                day = b.date
-                allDay = b.allDay
-                if (!b.allDay) {
-                    startMin = b.startMin
-                    endMin = b.endMin
+                blockDays = blockRun(b, repo.getAllBlocks())
+                if (!filled) {
+                    day = b.date
+                    allDay = b.allDay
+                    if (!b.allDay) {
+                        startMin = b.startMin
+                        endMin = b.endMin
+                    }
+                    reason = b.reason
                 }
-                reason = b.reason
             }
         }
+        filled = true
     }
 
     val date = epochToDate(day)
@@ -261,20 +275,54 @@ fun BlockFormScreen(blockId: Long, initialDate: Long, initialStart: Int, onDone:
             onDismiss = { dialog = BlockDialog.NONE }
         )
 
-        BlockDialog.DELETE -> ConfirmDialog(
-            title = "Excluir bloqueio",
-            text = "O horário volta a ficar livre na agenda.",
-            confirmLabel = "Excluir",
-            danger = true,
-            onConfirm = {
-                dialog = BlockDialog.NONE
-                scope.launch {
-                    repo.deleteBlock(blockId)
-                    notifier.show("Bloqueio excluído")
-                    onDone()
+        BlockDialog.DELETE -> if (blockDays.size > 1) {
+            AlertDialog(
+                onDismissRequest = { dialog = BlockDialog.NONE },
+                title = { Text("Excluir bloqueio") },
+                text = {
+                    Text(
+                        "Este bloqueio vale para ${blockDays.size} dias seguidos, de " +
+                            "${formatDateShort(epochToDate(blockDays.first().date))} a ${formatDateShort(epochToDate(blockDays.last().date))}. " +
+                            "Os horários excluídos voltam a ficar livres na agenda."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        dialog = BlockDialog.NONE
+                        scope.launch {
+                            repo.deleteBlocks(blockDays.map { it.id })
+                            notifier.show("${blockDays.size} dias desbloqueados")
+                            onDone()
+                        }
+                    }) { Text("Todos os ${blockDays.size} dias", color = Brand.Terracotta, fontWeight = FontWeight.SemiBold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        dialog = BlockDialog.NONE
+                        scope.launch {
+                            repo.deleteBlock(blockId)
+                            notifier.show("Bloqueio excluído")
+                            onDone()
+                        }
+                    }) { Text("Só este dia", color = Brand.Terracotta) }
                 }
-            },
-            onDismiss = { dialog = BlockDialog.NONE }
-        )
+            )
+        } else {
+            ConfirmDialog(
+                title = "Excluir bloqueio",
+                text = "O horário volta a ficar livre na agenda.",
+                confirmLabel = "Excluir",
+                danger = true,
+                onConfirm = {
+                    dialog = BlockDialog.NONE
+                    scope.launch {
+                        repo.deleteBlock(blockId)
+                        notifier.show("Bloqueio excluído")
+                        onDone()
+                    }
+                },
+                onDismiss = { dialog = BlockDialog.NONE }
+            )
+        }
     }
 }

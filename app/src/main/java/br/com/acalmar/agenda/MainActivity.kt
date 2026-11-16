@@ -30,4 +30,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    // Backup automático: confere ao abrir o app e ao sair da tela (ver data/AutoBackup.kt).
+    override fun onStart() {
+        super.onStart()
+        (application as AcalmarApp).autoBackup.runIfDue()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        (application as AcalmarApp).autoBackup.runIfDue()
+    }
 }

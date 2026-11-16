@@ -1,5 +1,7 @@
 package br.com.acalmar.agenda.ui.clients
 
+import br.com.acalmar.agenda.ui.components.rememberSignatureState
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -98,7 +100,7 @@ fun ConsentScreen(clientId: Long, onBack: () -> Unit) {
     val business by repo.business.collectAsStateWithLifecycle(initialValue = BusinessInfo())
     val template by repo.consentText.collectAsStateWithLifecycle(initialValue = ConsentModel.DEFAULT_TEXT)
 
-    var signingNew by remember { mutableStateOf(false) }
+    var signingNew by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<Consent?>(null) }
     var previewing by remember { mutableStateOf<Consent?>(null) }
 
@@ -188,8 +190,8 @@ private fun SignForm(
     modifier: Modifier = Modifier,
     onSave: (imageUse: Boolean, signature: String, text: String) -> Unit
 ) {
-    val signature = remember { SignatureState() }
-    var imageUse by remember { mutableStateOf(false) }
+    val signature = rememberSignatureState()
+    var imageUse by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier

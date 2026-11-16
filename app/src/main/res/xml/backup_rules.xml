@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cópia de segurança do Android (conta Google), até o Android 11: só o banco de dados.
+     As fotos ficam de fora para a cópia nunca passar do limite de 25 MB do Google; elas vão no
+     backup do próprio app (Mais > Backup). -->
+<full-backup-content>
+    <include domain="database" path="." />
+</full-backup-content>

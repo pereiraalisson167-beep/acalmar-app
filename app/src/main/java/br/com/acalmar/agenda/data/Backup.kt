@@ -30,7 +30,7 @@ data class BackupFile(
 
     companion object {
         const val APP_TAG = "acalmar"
-        const val CURRENT_SCHEMA = 2
+        const val CURRENT_SCHEMA = 3
         const val DATA_ENTRY = "dados.json"
         const val PHOTO_DIR = "fotos/"
 

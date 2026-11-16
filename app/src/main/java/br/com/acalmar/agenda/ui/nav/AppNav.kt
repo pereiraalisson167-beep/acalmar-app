@@ -75,7 +75,7 @@ object Routes {
     const val BLOCK_FORM = "block?id={id}&date={date}&start={start}"
     const val CLIENT_FORM = "clientForm?id={id}"
     const val CLIENT_DETAIL = "client/{id}"
-    const val SELL_PACKAGE = "client/{id}/package"
+    const val SELL_PACKAGE = "client/{id}/package?packageId={packageId}"
     const val SERVICES = "services"
     const val SERVICE_FORM = "service?id={id}"
     const val HOURS = "hours"
@@ -99,7 +99,7 @@ object Routes {
     fun blockForm(id: Long = 0, date: Long = -1, start: Int = -1) = "block?id=$id&date=$date&start=$start"
     fun clientForm(id: Long = 0) = "clientForm?id=$id"
     fun clientDetail(id: Long) = "client/$id"
-    fun sellPackage(clientId: Long) = "client/$clientId/package"
+    fun sellPackage(clientId: Long, packageId: Long = 0) = "client/$clientId/package?packageId=$packageId"
     fun serviceForm(id: Long = 0) = "service?id=$id"
     fun clientAnamnesis(id: Long) = "client/$id/anamnesis"
     fun clientConsent(id: Long) = "client/$id/consent"
@@ -210,7 +210,8 @@ private fun AcalmarNavHost(nav: NavHostController) {
                 onNewBlock = { date, start -> nav.navigate(Routes.blockForm(date = date, start = start)) },
                 onEditBlock = { id -> nav.navigate(Routes.blockForm(id = id)) },
                 onOpenClient = { id -> nav.navigate(Routes.clientDetail(id)) },
-                onOpenHours = { nav.navigate(Routes.HOURS) }
+                onOpenHours = { nav.navigate(Routes.HOURS) },
+                onOpenBackup = { nav.navigate(Routes.BACKUP) }
             )
         }
         composable(Routes.CLIENTS) {
@@ -270,6 +271,7 @@ private fun AcalmarNavHost(nav: NavHostController) {
                 onEdit = { nav.navigate(Routes.clientForm(id)) },
                 onSchedule = { nav.navigate(Routes.apptForm(clientId = id)) },
                 onSellPackage = { nav.navigate(Routes.sellPackage(id)) },
+                onEditPackage = { packageId -> nav.navigate(Routes.sellPackage(id, packageId)) },
                 onEditAppointment = { apptId -> nav.navigate(Routes.apptForm(id = apptId)) },
                 onAnamnesis = { nav.navigate(Routes.clientAnamnesis(id)) },
                 onConsent = { nav.navigate(Routes.clientConsent(id)) },
@@ -277,8 +279,15 @@ private fun AcalmarNavHost(nav: NavHostController) {
                 onQuotes = { nav.navigate(Routes.quotes(id)) }
             )
         }
-        composable(Routes.SELL_PACKAGE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
-            SellPackageScreen(clientId = entry.arguments?.getLong("id") ?: 0L, onDone = back)
+        composable(
+            Routes.SELL_PACKAGE,
+            arguments = listOf(navArgument("id") { type = NavType.LongType }, longArg("packageId", 0))
+        ) { entry ->
+            SellPackageScreen(
+                clientId = entry.arguments?.getLong("id") ?: 0L,
+                packageId = entry.arguments?.getLong("packageId") ?: 0L,
+                onDone = back
+            )
         }
         composable(Routes.SERVICES) {
             ServicesScreen(onBack = back, onOpen = { id -> nav.navigate(Routes.serviceForm(id)) })
