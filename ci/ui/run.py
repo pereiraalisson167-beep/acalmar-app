@@ -636,6 +636,14 @@ def kill_in_background():
     return killed and after not in ("", before)
 
 
+def restart_check(description, text=None, regex=None):
+    """Encerra o app em segundo plano, reabre e confere que a tela voltou com o que estava nela."""
+    restarted = kill_in_background()
+    ok = restarted and visible(text, regex)
+    check(description, ok)
+    return ok
+
+
 def scroll_to(text=None, regex=None, tries=5):
     """Rola a tela para baixo até o elemento aparecer. Devolve se ele ficou à vista."""
     for _ in range(tries):
@@ -681,6 +689,59 @@ def version_21():
     check("formulario manteve o nome digitado depois de o app ser encerrado", visible("Joana Teste"))
     tap("Salvar")
     check("cliente salva depois de reabrir", visible("Joana Teste"))
+
+    # Ficha de anamnese em preenchimento
+    tap("Joana Teste")
+    tap("Ficha de anamnese")
+    tap("Sim", nth=2)
+    tap_field("Detalhes", 0)
+    type_text("Iodo")
+    hide_keyboard()
+    restart_check("anamnese manteve as respostas depois de o app ser encerrado", "Iodo")
+    shot("61b-anamnese-depois-de-reabrir")
+    tap("Salvar ficha")
+    check("ficha salva com o aviso de alergia", visible("Alergia"))
+
+    # Assinatura do termo
+    tap("Termo de consentimento")
+    draw_signature()
+    restarted = kill_in_background()
+    shot("61c-termo-depois-de-reabrir")
+    tap("Salvar termo assinado")
+    time.sleep(2)
+    back()
+    check("assinatura mantida depois de o app ser encerrado", restarted and visible(regex=r"Assinado em .*"))
+
+    # Itens de um orçamento
+    tap("Orçamentos")
+    tap("Novo orçamento")
+    tap("Adicionar item")
+    tap(regex=r"Pacote de 5 sessões · Drenagem linfática")
+    restart_check("orcamento manteve os itens depois de o app ser encerrado", regex=r"(?s).*Drenagem linfática.*")
+    shot("61d-orcamento-depois-de-reabrir")
+    tap("Salvar orçamento")
+    back()
+    back()
+
+    # Telas de configuração
+    go_tab("Mais")
+    tap("Serviços e pacotes")
+    tap("Drenagem linfática")
+    restart_check("servico em edicao volta depois de o app ser encerrado", "Editar serviço")
+    shot("61e-servico-depois-de-reabrir")
+    back()
+    back()
+    tap("Horário de atendimento")
+    restart_check("horario de atendimento volta depois de o app ser encerrado", "Horário de atendimento")
+    back()
+    tap("Fichas e termo")
+    tap("Perguntas da ficha de anamnese")
+    tap("Está em tratamento médico?")
+    restart_check("pergunta em edicao volta depois de o app ser encerrado", "Alterar pergunta")
+    shot("61f-pergunta-depois-de-reabrir")
+    tap("Cancelar", wait=3, optional=True, scrolls=0)
+    back()
+    back()
 
     # ---- Desconto não vira dívida
     go_tab("Agenda")
@@ -770,6 +831,17 @@ def version_21():
         tap("Salvar correção")
     else:
         fail("corrigir pacote")
+
+    # ---- Repetição com pacote: só resta 1 sessão para agendar, então o horário não se repete
+    to_top()
+    tap("Agendar")
+    tap("Escolher serviço")
+    tap("Drenagem linfática")
+    one_left = scroll_to(regex=r"O pacote só tem mais 1 sessão.*")
+    check("pacote com 1 sessao para agendar nao oferece repeticao", one_left and not visible("Repetir"))
+    shot("70b-pacote-uma-sessao")
+    back()
+
     go_tab("Caixa")
     shot("71-caixa-sem-pacote-antigo")
     check("pacote antigo nao entrou no caixa", not visible(regex=r"(?s).*Massagem relaxante.*"))

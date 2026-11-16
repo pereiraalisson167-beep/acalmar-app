@@ -241,10 +241,13 @@ fun AppointmentFormScreen(
      */
     suspend fun occupiedDates(): List<String> {
         val out = mutableListOf<String>()
+        val single = original != null || effectiveRepeat == RepeatEvery.NONE
         conflicts.forEach { c ->
-            out += "${formatDateShort(date)} · ${c.what} (${formatTimeRange(c.startMin, c.endMin)})"
+            // Com uma data só, o dia já está no formulário; a data só ajuda quando há várias.
+            val prefix = if (single) "" else "${formatDateShort(date)} · "
+            out += "$prefix${c.what} (${formatTimeRange(c.startMin, c.endMin)})"
         }
-        if (original != null || effectiveRepeat == RepeatEvery.NONE) return out
+        if (single) return out
         repeatDates(date, effectiveRepeat, count).drop(1).forEach { d ->
             val epoch = d.toEpochDay()
             val h = hours.forDate(d)
