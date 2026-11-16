@@ -14,8 +14,10 @@ Cada versão nova instala por cima da anterior e mantém os dados.
 ## O que o app faz
 
 **Agenda**
-- Semana e dia, horários livres, bloqueio de horários (período, dia inteiro ou vários dias).
-- Sessões que se repetem, concluir / faltou / desmarcou, lembrete pelo WhatsApp.
+- Semana e dia, horários livres, bloqueio de horários (período, dia inteiro ou vários dias; um bloqueio
+  de vários dias pode ser desfeito de uma vez).
+- Sessões que se repetem (com pacote, só as sessões que restam), concluir / faltou / desmarcou, lembrete pelo WhatsApp.
+- Horário já ocupado pede confirmação antes de salvar.
 - Aviso de atenção no horário quando a ficha de anamnese da cliente tem algo importante (ex.: alergia).
 
 **Clientes**
@@ -27,14 +29,26 @@ Cada versão nova instala por cima da anterior e mantém os dados.
 - Hora de chamar de volta: lista de quem passou do tempo de retorno do serviço, com mensagem pronta no WhatsApp.
 
 **Vendas e caixa**
-- Serviços, pacotes de sessões e controle das sessões usadas.
+- Serviços, pacotes de sessões e controle das sessões usadas. Um pacote vendido pode ser corrigido
+  (sessões, valor, datas) sem novo lançamento no caixa.
+- Pacote comprado antes do app: o valor já pago não entra no caixa nem em "A receber".
+- Desconto: ao receber menos que o valor, o restante pode ficar a receber ou ser dado como desconto (baixa).
 - Orçamentos com o logo, enviados como imagem ou texto pelo WhatsApp.
 - Caixa do dia: entradas, saídas, formas de pagamento, resumo do mês e valores a receber.
+  O dia em que cada pagamento entra no caixa pode ser escolhido e alterado depois.
 
 **Backup**
 - Cópia de todos os dados e fotos em um arquivo .zip (por exemplo, no Google Drive).
+- Backup automático: em **Mais > Backup**, escolha uma pasta do celular e o app passa a guardar nela uma
+  cópia completa sempre que algo mudar (no máximo uma por hora; 3 arquivos em rodízio).
+- A Agenda avisa quando faz 7 dias ou mais sem backup fora do celular.
 
-Os dados ficam somente no celular. O backup deve ser feito pelo menos uma vez por semana, em **Mais > Backup**.
+Os dados ficam somente no celular. O backup automático protege se o app for apagado ou der defeito; se o
+celular quebrar ou for roubado, o que salva é o backup enviado para fora dele (Google Drive), que deve ser
+feito pelo menos uma vez por semana, em **Mais > Backup**.
+
+Os formulários guardam o que foi digitado mesmo se o Android encerrar o app em segundo plano
+(por exemplo, ao ir para o WhatsApp no meio de uma ficha).
 
 ## Para quem desenvolve
 
@@ -44,5 +58,7 @@ Os dados ficam somente no celular. O backup deve ser feito pelo menos uma vez po
   por cima, percorre as telas (`ci/ui/run.py`) e publica as imagens no ramo `ui-screens`.
 - A estrutura de cada versão do banco fica em `app/schemas` (usada pelo Room para atualizar o banco sem
   perder dados). Ao mudar tabelas: aumente a versão em `AppDatabase.kt` e adicione a migração.
+- O que é digitado em formulários usa `rememberSaveable` (ver `ui/components/Saveable.kt`); o roteiro do
+  emulador encerra o app no meio de vários formulários para conferir que nada se perde.
 - A chave de assinatura fica em `keystore/`, protegida pela senha do segredo `KEYSTORE_PASSWORD`.
   Sem a mesma chave e senha, as atualizações não instalam por cima da versão anterior.

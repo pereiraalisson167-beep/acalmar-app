@@ -164,9 +164,24 @@ def shot(name):
     note(f"imagem: {name}")
 
 
-def type_text(value):
-    adb("shell", "input", "text", value.replace(" ", "%s"))
-    time.sleep(0.8)
+def type_text(value, exact=True):
+    """Digita no campo em foco.
+
+    Logo depois de tocar em um campo o teclado ainda está abrindo e as primeiras letras podem se
+    perder. Por isso espera um instante e, com `exact`, confere que o texto entrou inteiro; se não
+    entrou, apaga e digita de novo. Use exact=False em campos que formatam o que é digitado
+    (telefone, valores em reais).
+    """
+    time.sleep(0.7)
+    for attempt in range(3):
+        adb("shell", "input", "text", value.replace(" ", "%s"))
+        time.sleep(0.8)
+        if not exact or any((n.get("text") or "") == value for n in nodes()):
+            return
+        note(f"digitacao incompleta de '{value}' (tentativa {attempt + 1}); apagando e digitando de novo")
+        adb("shell", "input", "keyevent", "123")
+        erase(len(value) + 2)
+    fail("digitar " + value)
 
 
 def back():
@@ -345,7 +360,7 @@ def first_day(prefix):
     tap_field("Nome", 0)
     type_text("Maria Silva")
     tap_field("WhatsApp (com DDD)", 1)
-    type_text("11998484660")
+    type_text("11998484660", exact=False)
     shot(prefix + "03-cliente-rapida")
     tap("Salvar")
     tap("Escolher serviço")
@@ -759,7 +774,7 @@ def version_21():
     tap("Concluir atendimento")
     tap_field("Valor recebido", 0)
     erase(6)
-    type_text("8000")
+    type_text("8000", exact=False)
     hide_keyboard()
     check("restante aparece ao receber menos", visible(regex=r"Restante: R\$\s?15,00"))
     tap("Foi desconto")
