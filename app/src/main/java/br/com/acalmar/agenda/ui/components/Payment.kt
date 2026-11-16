@@ -142,6 +142,13 @@ fun ReceiveDialog(
                     onRest = { rest = it },
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (!onlyWaive) {
+                    // Atalho para quando o valor não vai ser pago (foi desconto ou cortesia).
+                    TextButton(onClick = {
+                        amount = 0L
+                        rest = RestChoice.WAIVE
+                    }) { Text("Não vai receber? Dar baixa como desconto") }
+                }
             }
         },
         confirmButton = {

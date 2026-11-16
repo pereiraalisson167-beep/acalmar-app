@@ -119,6 +119,9 @@ fun AgendaScreen(
     val firstUse = clients.minOfOrNull { it.createdAt } ?: Long.MAX_VALUE
     val backupLate = backupOverdue &&
         (lastBackup != null || System.currentTimeMillis() - firstUse >= 3 * 86_400_000L)
+    // Se a cópia automática parar de funcionar (pasta apagada, sem espaço), o aviso aparece aqui,
+    // para o problema não ficar escondido em Mais > Backup.
+    val autoBackupError = settings[Keys.AUTO_BACKUP_ERROR].orEmpty()
 
     val clientById = remember(clients) { clients.associateBy { it.id } }
     val dayAppts = weekAppts.filter { it.date == selectedDay }
@@ -163,7 +166,7 @@ fun AgendaScreen(
             }
 
             // ---- Aviso de backup atrasado (só quando já há clientes cadastradas)
-            if (backupLate && clients.isNotEmpty()) {
+            if ((backupLate || autoBackupError.isNotBlank()) && clients.isNotEmpty()) {
                 SoftCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,9 +179,17 @@ fun AgendaScreen(
                         Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = Brand.Bronze, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Backup atrasado", style = MaterialTheme.typography.titleSmall, color = Brand.BronzeDark)
                             Text(
-                                "$backupText. Toque para guardar uma cópia fora do celular.",
+                                if (autoBackupError.isNotBlank()) "Backup automático parou" else "Backup atrasado",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Brand.BronzeDark
+                            )
+                            Text(
+                                if (autoBackupError.isNotBlank()) {
+                                    "$autoBackupError Toque para resolver."
+                                } else {
+                                    "$backupText. Toque para guardar uma cópia fora do celular."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Brand.BrownSoft
                             )
